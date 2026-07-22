@@ -6,12 +6,14 @@ import {
   proxyRequest,
   saveWorkspace,
 } from "./api";
+import ImportOpenApiModal from "./ImportOpenApiModal";
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
   emptyRequest,
   type ApiRequest,
   type BodyType,
+  type Collection,
   type HeaderRow,
   type ProxyResponse,
   type User,
@@ -62,6 +64,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +156,18 @@ export default function App() {
     setCollectionId(targetCollectionId);
     setRequestId(request.id);
     setDirty(true);
+  }
+
+  function importCollection(collection: Collection) {
+    if (!workspace) return;
+    setWorkspace({
+      ...workspace,
+      collections: [...workspace.collections, collection],
+    });
+    setCollectionId(collection.id);
+    setRequestId(collection.requests[0]?.id ?? null);
+    setDirty(true);
+    setError(null);
   }
 
   async function handleSave() {
@@ -293,9 +308,14 @@ export default function App() {
         <aside className="sidebar">
           <div className="sidebar-header">
             <h2>Collections</h2>
-            <button className="btn" onClick={addCollection}>
-              +
-            </button>
+            <div className="sidebar-actions">
+              <button className="btn" title="Import OpenAPI" onClick={() => setImportOpen(true)}>
+                OpenAPI
+              </button>
+              <button className="btn" title="New collection" onClick={addCollection}>
+                +
+              </button>
+            </div>
           </div>
           <div className="sidebar-body">
             {workspace.collections.map((collection) => (
@@ -502,6 +522,12 @@ export default function App() {
           </div>
         </section>
       </div>
+
+      <ImportOpenApiModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={importCollection}
+      />
     </div>
   );
 }

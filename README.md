@@ -37,6 +37,10 @@ The Vite dev server proxies `/auth` and `/api` to the Express server. Guest mode
 | Guest (default) | Browser `localStorage` (`openputman-workspace`) |
 | Signed in | Private GitHub Gist described as `openputman-workspace` |
 
+## OpenAPI import
+
+Use **OpenAPI** in the collections sidebar to paste JSON/YAML, upload a file, or fetch a URL. Openputman creates a collection from `info.title` and one request per path operation (method, URL, sample headers/body when available). Supports OpenAPI 3.x and Swagger 2.0.
+
 ## Scopes (GitHub only)
 
 OAuth requests `read:user` and `gist`.
