@@ -673,57 +673,94 @@ function WebsiteGroupBlock({
   onSelectRequest,
   onMoveCollection,
 }: GroupBlockProps) {
+  const containsActive = collections.some((collection) =>
+    collection.requests.some((request) => request.id === activeRequestId),
+  );
+  const [open, setOpen] = useState(containsActive);
+  const requestCount = collections.reduce((sum, collection) => sum + collection.requests.length, 0);
+
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
+
   if (!group && collections.length === 0) return null;
 
+  const label = group ? group.name : "Ungrouped";
+
   return (
-    <div className="website-group">
-      <div className="website-group-header">
-        <div className="website-group-title">
-          <strong>{group ? group.name : "Ungrouped"}</strong>
+    <div className={`website-group${open ? " is-open" : ""}`}>
+      <button
+        type="button"
+        className="website-group-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="website-group-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="website-group-title">
+          <strong>{label}</strong>
           {group?.website ? <span className="website-url">{group.website}</span> : null}
-        </div>
-        <button className="linkish" type="button" onClick={onAddCollection}>
-          + collection
-        </button>
-      </div>
-      {collections.map((collection) => (
-        <div className="collection" key={collection.id}>
-          <div className="collection-title">
-            <span>{collection.name}</span>
-            <div className="collection-actions">
-              <select
-                className="group-select"
-                value={collection.groupId ?? ""}
-                title="Move to website group"
-                onChange={(e) =>
-                  onMoveCollection(collection.id, e.target.value ? e.target.value : null)
-                }
-              >
-                <option value="">Ungrouped</option>
-                {allGroups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-              <button className="linkish" type="button" onClick={() => onAddRequest(collection.id)}>
-                + request
-              </button>
-            </div>
-          </div>
-          {collection.requests.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`request-item${item.id === activeRequestId ? " active" : ""}`}
-              onClick={() => onSelectRequest(collection.id, item.id)}
-            >
-              <span className={`method ${item.method}`}>{item.method}</span>
-              <span>{item.name}</span>
+          <span className="website-meta">
+            {collections.length} collection{collections.length === 1 ? "" : "s"} · {requestCount}{" "}
+            request{requestCount === 1 ? "" : "s"}
+          </span>
+        </span>
+      </button>
+      {open ? (
+        <div className="website-group-body">
+          <div className="website-group-toolbar">
+            <button className="linkish" type="button" onClick={onAddCollection}>
+              + collection
             </button>
+          </div>
+          {collections.map((collection) => (
+            <div className="collection" key={collection.id}>
+              <div className="collection-title">
+                <span>{collection.name}</span>
+                <div className="collection-actions">
+                  <select
+                    className="group-select"
+                    value={collection.groupId ?? ""}
+                    title="Move to website group"
+                    onChange={(e) =>
+                      onMoveCollection(collection.id, e.target.value ? e.target.value : null)
+                    }
+                  >
+                    <option value="">Ungrouped</option>
+                    {allGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="linkish"
+                    type="button"
+                    onClick={() => onAddRequest(collection.id)}
+                  >
+                    + request
+                  </button>
+                </div>
+              </div>
+              {collection.requests.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`request-item${item.id === activeRequestId ? " active" : ""}`}
+                  onClick={() => onSelectRequest(collection.id, item.id)}
+                >
+                  <span className={`method ${item.method}`}>{item.method}</span>
+                  <span>{item.name}</span>
+                </button>
+              ))}
+            </div>
           ))}
+          {collections.length === 0 ? (
+            <p className="muted website-empty">No collections in this website yet.</p>
+          ) : null}
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }
