@@ -43,6 +43,10 @@ app.use("/auth", authRoutes);
 app.use("/api", workspaceRoutes);
 app.use("/api", proxyRoutes);
 
-app.listen(config.port, () => {
-  console.log(`[openputman] server listening on http://localhost:${config.port}`);
-});
+export default app;
+
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`[openputman] server listening on http://localhost:${config.port}`);
+  });
+}

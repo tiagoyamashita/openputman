@@ -1,6 +1,8 @@
 {
   "name": "openputman",
   "private": true,
+  "type": "module",
+  "main": "server/src/index.ts",
   "workspaces": [
     "client",
     "server"

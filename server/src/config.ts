@@ -6,14 +6,24 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../.env") });
 dotenv.config();
 
+function vercelOrigin(): string | undefined {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  return host ? `https://${host}` : undefined;
+}
+
+const deployedOrigin = vercelOrigin();
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
-  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  clientOrigin: process.env.CLIENT_ORIGIN ?? deployedOrigin ?? "http://localhost:5173",
   sessionSecret: process.env.SESSION_SECRET ?? "dev-openputman-secret-change-me",
   githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
   githubClientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
   githubCallbackUrl:
-    process.env.GITHUB_CALLBACK_URL ?? "http://localhost:4000/auth/github/callback",
+    process.env.GITHUB_CALLBACK_URL ??
+    (deployedOrigin
+      ? `${deployedOrigin}/auth/github/callback`
+      : "http://localhost:4000/auth/github/callback"),
 };
 
 export function assertAuthConfig(): void {
