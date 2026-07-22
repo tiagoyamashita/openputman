@@ -640,6 +640,15 @@ button {
   color: var(--text-muted);
 }
 
+.error-banner {
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(240, 113, 120, 0.12);
+  border: 1px solid rgba(240, 113, 120, 0.35);
+  color: #ffb4b8;
+}
+
 .linkish {
   border: none;
   background: transparent;
