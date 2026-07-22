@@ -36,7 +36,7 @@ app.use(
 );
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, name: "openputman" });
+  res.json({ ok: true, name: "OpenPutMan" });
 });
 
 app.use("/auth", authRoutes);

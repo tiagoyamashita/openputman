@@ -1,4 +1,4 @@
-# Openputman
+# OpenPutMan
 
 Postman-like API client for the browser. Use it without an account (collections save in **local storage**), or sign in with GitHub to sync a **private Gist** — no app database.
 
@@ -49,7 +49,7 @@ Collections are organized under **website groups** in the sidebar. Use **+ site*
 
 ## OpenAPI import
 
-Use **OpenAPI** in the collections sidebar to paste JSON/YAML, upload a file, or fetch a URL. Openputman creates a collection from `info.title` and one request per path operation (method, URL, sample headers/body when available). Supports OpenAPI 3.x and Swagger 2.0.
+Use **OpenAPI** in the collections sidebar to paste JSON/YAML, upload a file, or load a URL. OpenPutMan creates a collection from `info.title` and one request per path operation (method, URL, sample headers/body when available). Supports OpenAPI 3.x and Swagger 2.0.
 
 ## Scopes (GitHub only)
 

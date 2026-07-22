@@ -319,7 +319,7 @@ export default function App() {
   if (booting) {
     return (
       <div className="landing">
-        <p className="muted">Loading Openputman…</p>
+        <p className="muted">Loading OpenPutMan…</p>
       </div>
     );
   }
@@ -351,7 +351,7 @@ export default function App() {
         <div className="brand">
           <img src="/logo.png" alt="" />
           <div>
-            <h1>Openputman</h1>
+            <h1>OpenPutMan</h1>
             <span>
               {user
                 ? "Collections sync to your GitHub Gist"

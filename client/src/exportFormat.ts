@@ -96,7 +96,7 @@ export function parseOpenputmanExport(raw: string): OpenputmanExport {
   }
 
   if (!isRecord(parsed) || parsed.format !== "openputman" || parsed.version !== 1) {
-    throw new Error('Not an Openputman export (expected format "openputman" version 1)');
+    throw new Error('Not an OpenPutMan export (expected format "openputman" version 1)');
   }
 
   const kind = parsed.kind;
