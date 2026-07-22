@@ -5,7 +5,7 @@ const STORAGE_KEY = "openputman-workspace";
 export function loadLocalWorkspace(): Workspace {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptyWorkspace();
+    if (!raw?.trim()) return emptyWorkspace();
     const parsed: unknown = JSON.parse(raw);
     return normalizeWorkspace(parsed) ?? emptyWorkspace();
   } catch {

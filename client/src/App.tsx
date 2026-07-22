@@ -711,8 +711,10 @@ export default function App() {
 }
 
 function formatBody(body: string): string {
+  const trimmed = body.trim();
+  if (!trimmed) return body;
   try {
-    return JSON.stringify(JSON.parse(body), null, 2);
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
   } catch {
     return body;
   }

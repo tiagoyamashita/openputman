@@ -1,9 +1,23 @@
 import type { ProxyResponse, User, Workspace } from "./types";
 
 async function parseJson<T>(res: Response): Promise<T> {
-  const data = (await res.json()) as T & { error?: string };
+  const text = await res.text();
+  if (!text.trim()) {
+    if (!res.ok) {
+      throw new Error(`Request failed (${res.status})`);
+    }
+    throw new Error("Empty response from server");
+  }
+
+  let data: T & { error?: string };
+  try {
+    data = JSON.parse(text) as T & { error?: string };
+  } catch {
+    throw new Error(`Invalid JSON from server (${res.status})`);
+  }
+
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+    throw new Error(data.error ?? `Request failed (${res.status})`);
   }
   return data;
 }
@@ -48,7 +62,18 @@ export async function proxyRequest(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  const data = (await res.json()) as ProxyResponse & { error?: string };
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new Error(res.ok ? "Empty proxy response" : `Proxy failed (${res.status})`);
+  }
+
+  let data: ProxyResponse & { error?: string };
+  try {
+    data = JSON.parse(text) as ProxyResponse & { error?: string };
+  } catch {
+    throw new Error(`Invalid proxy response (${res.status})`);
+  }
+
   if (!res.ok) {
     throw new Error(data.error ?? `Proxy failed (${res.status})`);
   }
