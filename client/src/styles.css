@@ -200,21 +200,35 @@ button {
 }
 
 .website-group {
-  margin-bottom: 14px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #1f242b;
+  overflow: hidden;
 }
 
-.website-group:last-child {
-  border-bottom: none;
-}
-
-.website-group-header {
+.website-group-toggle {
+  width: 100%;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 8px;
-  padding: 8px 8px 10px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 10px 10px 8px;
+  color: inherit;
+}
+
+.website-group-toggle:hover {
+  background: #2a313a;
+}
+
+.website-group-chevron {
+  width: 14px;
+  color: var(--accent);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 .website-group-title {
@@ -234,7 +248,36 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 170px;
+  max-width: 190px;
+}
+
+.website-meta {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.website-group-body {
+  border-top: 1px solid var(--border);
+  padding: 6px 6px 8px;
+}
+
+.website-group-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 6px 8px;
+}
+
+.website-empty {
+  margin: 0;
+  padding: 6px 8px 10px;
+}
+
+.website-group-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 10px;
 }
 
 .collection-actions {
