@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchMe,
   loadWorkspace,
@@ -7,7 +7,12 @@ import {
   saveWorkspace,
 } from "./api";
 import ImportOpenApiModal from "./ImportOpenApiModal";
-import ExportImportModal from "./ExportImportModal";
+import {
+  applyExportToWorkspace,
+  buildExport,
+  downloadExport,
+  parseOpenputmanExport,
+} from "./exportFormat";
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
@@ -66,7 +71,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  const loadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,6 +175,44 @@ export default function App() {
     setRequestId(collection.requests[0]?.id ?? null);
     setDirty(true);
     setError(null);
+  }
+
+  function handleExportAll() {
+    if (!workspace) return;
+    try {
+      downloadExport(buildExport("workspace", workspace, collectionId, requestId));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
+  function handleExportRequest() {
+    if (!workspace) return;
+    try {
+      downloadExport(buildExport("request", workspace, collectionId, requestId));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
+  async function handleLoadFile(file: File | null) {
+    if (!file || !workspace) return;
+    try {
+      const raw = await file.text();
+      const payload = parseOpenputmanExport(raw);
+      const next = applyExportToWorkspace(workspace, payload, collectionId);
+      setWorkspace(next.workspace);
+      setCollectionId(next.collectionId);
+      setRequestId(next.requestId);
+      setDirty(true);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Load failed");
+    } finally {
+      if (loadInputRef.current) loadInputRef.current.value = "";
+    }
   }
 
   async function handleSave() {
@@ -285,9 +328,23 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn" onClick={() => setExportOpen(true)}>
-            Export / Load
+          <button className="btn" type="button" onClick={handleExportAll}>
+            Export all
           </button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => loadInputRef.current?.click()}
+          >
+            Load
+          </button>
+          <input
+            ref={loadInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => void handleLoadFile(e.target.files?.[0] ?? null)}
+          />
           <button className="btn btn-primary" onClick={handleSave} disabled={saving || !dirty}>
             {saveLabel}
           </button>
@@ -385,6 +442,9 @@ export default function App() {
             />
             <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
               {sending ? "Sending…" : "Send"}
+            </button>
+            <button className="btn" type="button" onClick={handleExportRequest}>
+              Export request
             </button>
           </div>
 
@@ -538,20 +598,6 @@ export default function App() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={importCollection}
-      />
-      <ExportImportModal
-        open={exportOpen}
-        onClose={() => setExportOpen(false)}
-        workspace={workspace}
-        collectionId={collectionId}
-        requestId={requestId}
-        onLoaded={({ workspace: next, collectionId: nextCollectionId, requestId: nextRequestId }) => {
-          setWorkspace(next);
-          setCollectionId(nextCollectionId);
-          setRequestId(nextRequestId);
-          setDirty(true);
-          setError(null);
-        }}
       />
     </div>
   );

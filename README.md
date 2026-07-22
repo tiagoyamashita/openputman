@@ -39,7 +39,9 @@ The Vite dev server proxies `/auth` and `/api` to the Express server. Guest mode
 
 ## Export / Load
 
-Use **Export / Load** in the top bar to download JSON for the full workspace, the active collection, or a single request. Load the same file later (file picker or paste) to restore or merge it back in.
+- **Export all** (top bar) — download the full workspace JSON  
+- **Load** (top bar) — restore a previously exported workspace, collection, or request file  
+- **Export request** (next to Send) — download only the current request  
 
 ## OpenAPI import
 
