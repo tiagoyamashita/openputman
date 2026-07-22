@@ -180,6 +180,64 @@ export default function App() {
     setDirty(true);
   }
 
+  function deleteGroup(groupId: string) {
+    if (!workspace) return;
+    if (!window.confirm("Delete this website group? Its collections become ungrouped.")) return;
+    const nextCollections = workspace.collections.map((collection) =>
+      collection.groupId === groupId ? { ...collection, groupId: null } : collection,
+    );
+    const nextWorkspace = {
+      ...workspace,
+      groups: workspace.groups.filter((group) => group.id !== groupId),
+      collections: nextCollections,
+    };
+    setWorkspace(nextWorkspace);
+    if (activeGroupId === groupId) setActiveGroupId(null);
+    setDirty(true);
+  }
+
+  function deleteCollection(targetCollectionId: string) {
+    if (!workspace) return;
+    if (!window.confirm("Delete this collection and all of its requests?")) return;
+    const remaining = workspace.collections.filter(
+      (collection) => collection.id !== targetCollectionId,
+    );
+    const nextWorkspace = { ...workspace, collections: remaining };
+    setWorkspace(nextWorkspace);
+    if (collectionId === targetCollectionId) {
+      const sel = selectFirst(nextWorkspace);
+      setCollectionId(sel.collectionId);
+      setRequestId(sel.requestId);
+      setResponse(null);
+    }
+    setDirty(true);
+  }
+
+  function deleteRequest(targetCollectionId: string, targetRequestId: string) {
+    if (!workspace) return;
+    if (!window.confirm("Delete this request?")) return;
+    const nextWorkspace: Workspace = {
+      ...workspace,
+      collections: workspace.collections.map((collection) => {
+        if (collection.id !== targetCollectionId) return collection;
+        return {
+          ...collection,
+          requests: collection.requests.filter((request) => request.id !== targetRequestId),
+        };
+      }),
+    };
+    setWorkspace(nextWorkspace);
+    if (requestId === targetRequestId) {
+      const collection =
+        nextWorkspace.collections.find((c) => c.id === targetCollectionId) ??
+        nextWorkspace.collections[0];
+      setCollectionId(collection?.id ?? null);
+      setRequestId(collection?.requests[0]?.id ?? null);
+      setResponse(null);
+    }
+    setDirty(true);
+  }
+
   function addRequest(targetCollectionId: string) {
     if (!workspace) return;
     const request = emptyRequest();
@@ -434,6 +492,9 @@ export default function App() {
                   setResponse(null);
                 }}
                 onMoveCollection={moveCollectionToGroup}
+                onDeleteGroup={deleteGroup}
+                onDeleteCollection={deleteCollection}
+                onDeleteRequest={deleteRequest}
               />
             ))}
             <WebsiteGroupBlock
@@ -452,6 +513,9 @@ export default function App() {
                 setResponse(null);
               }}
               onMoveCollection={moveCollectionToGroup}
+              onDeleteGroup={deleteGroup}
+              onDeleteCollection={deleteCollection}
+              onDeleteRequest={deleteRequest}
             />
           </div>
         </aside>
@@ -661,6 +725,9 @@ type GroupBlockProps = {
   onAddRequest: (collectionId: string) => void;
   onSelectRequest: (collectionId: string, requestId: string) => void;
   onMoveCollection: (collectionId: string, groupId: string | null) => void;
+  onDeleteGroup: (groupId: string) => void;
+  onDeleteCollection: (collectionId: string) => void;
+  onDeleteRequest: (collectionId: string, requestId: string) => void;
 };
 
 function WebsiteGroupBlock({
@@ -672,6 +739,9 @@ function WebsiteGroupBlock({
   onAddRequest,
   onSelectRequest,
   onMoveCollection,
+  onDeleteGroup,
+  onDeleteCollection,
+  onDeleteRequest,
 }: GroupBlockProps) {
   const containsActive = collections.some((collection) =>
     collection.requests.some((request) => request.id === activeRequestId),
@@ -689,24 +759,36 @@ function WebsiteGroupBlock({
 
   return (
     <div className={`website-group${open ? " is-open" : ""}`}>
-      <button
-        type="button"
-        className="website-group-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="website-group-chevron" aria-hidden="true">
-          {open ? "▾" : "▸"}
-        </span>
-        <span className="website-group-title">
-          <strong>{label}</strong>
-          {group?.website ? <span className="website-url">{group.website}</span> : null}
-          <span className="website-meta">
-            {collections.length} collection{collections.length === 1 ? "" : "s"} · {requestCount}{" "}
-            request{requestCount === 1 ? "" : "s"}
+      <div className="website-group-row">
+        <button
+          type="button"
+          className="website-group-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="website-group-chevron" aria-hidden="true">
+            {open ? "▾" : "▸"}
           </span>
-        </span>
-      </button>
+          <span className="website-group-title">
+            <strong>{label}</strong>
+            {group?.website ? <span className="website-url">{group.website}</span> : null}
+            <span className="website-meta">
+              {collections.length} collection{collections.length === 1 ? "" : "s"} · {requestCount}{" "}
+              request{requestCount === 1 ? "" : "s"}
+            </span>
+          </span>
+        </button>
+        {group ? (
+          <button
+            type="button"
+            className="btn-delete"
+            title="Delete website"
+            onClick={() => onDeleteGroup(group.id)}
+          >
+            Delete
+          </button>
+        ) : null}
+      </div>
       {open ? (
         <div className="website-group-body">
           <div className="website-group-toolbar">
@@ -717,7 +799,7 @@ function WebsiteGroupBlock({
           {collections.map((collection) => (
             <div className="collection" key={collection.id}>
               <div className="collection-title">
-                <span>{collection.name}</span>
+                <span className="collection-name">{collection.name}</span>
                 <div className="collection-actions">
                   <select
                     className="group-select"
@@ -741,18 +823,38 @@ function WebsiteGroupBlock({
                   >
                     + request
                   </button>
+                  <button
+                    type="button"
+                    className="btn-delete"
+                    title="Delete collection"
+                    onClick={() => onDeleteCollection(collection.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
               {collection.requests.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  className={`request-item${item.id === activeRequestId ? " active" : ""}`}
-                  onClick={() => onSelectRequest(collection.id, item.id)}
+                  className={`request-row${item.id === activeRequestId ? " active" : ""}`}
                 >
-                  <span className={`method ${item.method}`}>{item.method}</span>
-                  <span>{item.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    className="request-item"
+                    onClick={() => onSelectRequest(collection.id, item.id)}
+                  >
+                    <span className={`method ${item.method}`}>{item.method}</span>
+                    <span>{item.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-delete"
+                    title="Delete request"
+                    onClick={() => onDeleteRequest(collection.id, item.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               ))}
             </div>
           ))}

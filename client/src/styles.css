@@ -208,15 +208,89 @@ button {
 }
 
 .website-group-toggle {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   gap: 8px;
   text-align: left;
   border: none;
   background: transparent;
-  padding: 10px 10px 10px 8px;
+  padding: 10px 8px 10px 8px;
   color: inherit;
+}
+
+.website-group-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding-right: 6px;
+}
+
+.website-group-row .btn-delete {
+  margin-top: 8px;
+}
+
+.collection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.collection-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.request-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+}
+
+.request-row.active,
+.request-row:hover {
+  background: #313843;
+}
+
+.request-row .request-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.request-row .btn-delete {
+  margin-right: 4px;
+}
+
+.btn-delete {
+  border: none;
+  background: transparent;
+  color: #f07178;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.btn-delete:hover {
+  background: rgba(240, 113, 120, 0.14);
 }
 
 .website-group-toggle:hover {
@@ -272,20 +346,6 @@ button {
   padding: 6px 8px 10px;
 }
 
-.website-group-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 8px 10px;
-}
-
-.collection-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .group-select {
   max-width: 90px;
   background: var(--bg-input);
@@ -294,17 +354,6 @@ button {
   padding: 2px 4px;
   font-size: 0.7rem;
   color: var(--text-muted);
-}
-
-.collection-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
 }
 
 .request-item {
@@ -317,11 +366,6 @@ button {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.request-item:hover,
-.request-item.active {
-  background: #313843;
 }
 
 .method {
