@@ -285,6 +285,7 @@ export function parseOpenApiDocument(raw: string): Collection {
   return {
     id: createId(),
     name: title,
+    groupId: null,
     requests,
   };
 }

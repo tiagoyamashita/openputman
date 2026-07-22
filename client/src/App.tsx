@@ -16,13 +16,16 @@ import {
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
+  emptyGroup,
   emptyRequest,
+  normalizeWorkspace,
   type ApiRequest,
   type BodyType,
   type Collection,
   type HeaderRow,
   type ProxyResponse,
   type User,
+  type WebsiteGroup,
   type Workspace,
 } from "./types";
 
@@ -71,6 +74,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const loadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,9 +87,10 @@ export default function App() {
         if (me) {
           const loaded = await loadWorkspace();
           if (cancelled) return;
-          setWorkspace(loaded.workspace);
+          const ws = normalizeWorkspace(loaded.workspace) ?? loaded.workspace;
+          setWorkspace(ws);
           setGistId(loaded.gistId);
-          const sel = selectFirst(loaded.workspace);
+          const sel = selectFirst(ws);
           setCollectionId(sel.collectionId);
           setRequestId(sel.requestId);
         } else {
@@ -140,12 +145,38 @@ export default function App() {
     updateRequest({ headers });
   }
 
-  function addCollection() {
+  function addGroup() {
     if (!workspace) return;
-    const collection = emptyCollection(`Collection ${workspace.collections.length + 1}`);
+    const name = window.prompt("Website / group name", "New website");
+    if (!name?.trim()) return;
+    const website = window.prompt("Website URL (optional)", "https://") ?? "";
+    const group = emptyGroup(name.trim(), website.trim());
+    setWorkspace({ ...workspace, groups: [...workspace.groups, group] });
+    setActiveGroupId(group.id);
+    setDirty(true);
+  }
+
+  function addCollection(groupId: string | null = activeGroupId) {
+    if (!workspace) return;
+    const collection = emptyCollection(
+      `Collection ${workspace.collections.length + 1}`,
+      groupId,
+    );
     setWorkspace({ ...workspace, collections: [...workspace.collections, collection] });
     setCollectionId(collection.id);
     setRequestId(collection.requests[0].id);
+    setActiveGroupId(groupId);
+    setDirty(true);
+  }
+
+  function moveCollectionToGroup(targetCollectionId: string, groupId: string | null) {
+    if (!workspace) return;
+    setWorkspace({
+      ...workspace,
+      collections: workspace.collections.map((collection) =>
+        collection.id === targetCollectionId ? { ...collection, groupId } : collection,
+      ),
+    });
     setDirty(true);
   }
 
@@ -167,12 +198,13 @@ export default function App() {
 
   function importCollection(collection: Collection) {
     if (!workspace) return;
+    const next = { ...collection, groupId: activeGroupId };
     setWorkspace({
       ...workspace,
-      collections: [...workspace.collections, collection],
+      collections: [...workspace.collections, next],
     });
-    setCollectionId(collection.id);
-    setRequestId(collection.requests[0]?.id ?? null);
+    setCollectionId(next.id);
+    setRequestId(next.requests[0]?.id ?? null);
     setDirty(true);
     setError(null);
   }
@@ -375,43 +407,52 @@ export default function App() {
       <div className="workspace">
         <aside className="sidebar">
           <div className="sidebar-header">
-            <h2>Collections</h2>
+            <h2>Websites</h2>
             <div className="sidebar-actions">
               <button className="btn" title="Import OpenAPI" onClick={() => setImportOpen(true)}>
                 OpenAPI
               </button>
-              <button className="btn" title="New collection" onClick={addCollection}>
-                +
+              <button className="btn" title="New website group" onClick={addGroup}>
+                + site
               </button>
             </div>
           </div>
           <div className="sidebar-body">
-            {workspace.collections.map((collection) => (
-              <div className="collection" key={collection.id}>
-                <div className="collection-title">
-                  <span>{collection.name}</span>
-                  <button className="linkish" onClick={() => addRequest(collection.id)}>
-                    + request
-                  </button>
-                </div>
-                {collection.requests.map((item) => (
-                  <button
-                    key={item.id}
-                    className={`request-item${
-                      item.id === selection.requestId ? " active" : ""
-                    }`}
-                    onClick={() => {
-                      setCollectionId(collection.id);
-                      setRequestId(item.id);
-                      setResponse(null);
-                    }}
-                  >
-                    <span className={`method ${item.method}`}>{item.method}</span>
-                    <span>{item.name}</span>
-                  </button>
-                ))}
-              </div>
+            {workspace.groups.map((group) => (
+              <WebsiteGroupBlock
+                key={group.id}
+                group={group}
+                collections={workspace.collections.filter((c) => c.groupId === group.id)}
+                allGroups={workspace.groups}
+                activeRequestId={selection.requestId}
+                onAddCollection={() => addCollection(group.id)}
+                onAddRequest={addRequest}
+                onSelectRequest={(cid, rid) => {
+                  setActiveGroupId(group.id);
+                  setCollectionId(cid);
+                  setRequestId(rid);
+                  setResponse(null);
+                }}
+                onMoveCollection={moveCollectionToGroup}
+              />
             ))}
+            <WebsiteGroupBlock
+              group={null}
+              collections={workspace.collections.filter(
+                (c) => !c.groupId || !workspace.groups.some((g) => g.id === c.groupId),
+              )}
+              allGroups={workspace.groups}
+              activeRequestId={selection.requestId}
+              onAddCollection={() => addCollection(null)}
+              onAddRequest={addRequest}
+              onSelectRequest={(cid, rid) => {
+                setActiveGroupId(null);
+                setCollectionId(cid);
+                setRequestId(rid);
+                setResponse(null);
+              }}
+              onMoveCollection={moveCollectionToGroup}
+            />
           </div>
         </aside>
 
@@ -609,4 +650,80 @@ function formatBody(body: string): string {
   } catch {
     return body;
   }
+}
+
+type GroupBlockProps = {
+  group: WebsiteGroup | null;
+  collections: Collection[];
+  allGroups: WebsiteGroup[];
+  activeRequestId: string;
+  onAddCollection: () => void;
+  onAddRequest: (collectionId: string) => void;
+  onSelectRequest: (collectionId: string, requestId: string) => void;
+  onMoveCollection: (collectionId: string, groupId: string | null) => void;
+};
+
+function WebsiteGroupBlock({
+  group,
+  collections,
+  allGroups,
+  activeRequestId,
+  onAddCollection,
+  onAddRequest,
+  onSelectRequest,
+  onMoveCollection,
+}: GroupBlockProps) {
+  if (!group && collections.length === 0) return null;
+
+  return (
+    <div className="website-group">
+      <div className="website-group-header">
+        <div className="website-group-title">
+          <strong>{group ? group.name : "Ungrouped"}</strong>
+          {group?.website ? <span className="website-url">{group.website}</span> : null}
+        </div>
+        <button className="linkish" type="button" onClick={onAddCollection}>
+          + collection
+        </button>
+      </div>
+      {collections.map((collection) => (
+        <div className="collection" key={collection.id}>
+          <div className="collection-title">
+            <span>{collection.name}</span>
+            <div className="collection-actions">
+              <select
+                className="group-select"
+                value={collection.groupId ?? ""}
+                title="Move to website group"
+                onChange={(e) =>
+                  onMoveCollection(collection.id, e.target.value ? e.target.value : null)
+                }
+              >
+                <option value="">Ungrouped</option>
+                {allGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <button className="linkish" type="button" onClick={() => onAddRequest(collection.id)}>
+                + request
+              </button>
+            </div>
+          </div>
+          {collection.requests.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`request-item${item.id === activeRequestId ? " active" : ""}`}
+              onClick={() => onSelectRequest(collection.id, item.id)}
+            >
+              <span className={`method ${item.method}`}>{item.method}</span>
+              <span>{item.name}</span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }

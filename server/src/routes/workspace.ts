@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../auth.js";
 import { loadOrCreateWorkspace, saveWorkspace } from "../gist.js";
-import { isWorkspace } from "../types.js";
+import { normalizeWorkspace } from "../types.js";
 
 const router = Router();
 
@@ -22,8 +22,8 @@ router.get("/workspace", requireAuth, async (req, res) => {
 router.put("/workspace", requireAuth, async (req, res) => {
   try {
     const token = req.session.user!.accessToken;
-    const workspace = req.body?.workspace;
-    if (!isWorkspace(workspace)) {
+    const workspace = normalizeWorkspace(req.body?.workspace);
+    if (!workspace) {
       res.status(400).json({ error: "Invalid workspace payload" });
       return;
     }

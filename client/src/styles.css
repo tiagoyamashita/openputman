@@ -196,6 +196,61 @@ button {
 
 .collection {
   margin-bottom: 10px;
+  padding-left: 6px;
+}
+
+.website-group {
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.website-group:last-child {
+  border-bottom: none;
+}
+
+.website-group-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 10px;
+}
+
+.website-group-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.website-group-title strong {
+  font-size: 0.9rem;
+}
+
+.website-url {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 170px;
+}
+
+.collection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-select {
+  max-width: 90px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .collection-title {

@@ -1,8 +1,10 @@
 import {
   createId,
   emptyCollection,
+  normalizeWorkspace,
   type ApiRequest,
   type Collection,
+  type WebsiteGroup,
   type Workspace,
 } from "./types";
 
@@ -55,16 +57,6 @@ function isCollection(value: unknown): value is Collection {
   );
 }
 
-function isWorkspace(value: unknown): value is Workspace {
-  return (
-    isRecord(value) &&
-    value.version === 1 &&
-    Array.isArray(value.collections) &&
-    value.collections.every(isCollection) &&
-    Array.isArray(value.environments)
-  );
-}
-
 export function buildExport(
   kind: ExportKind,
   workspace: Workspace,
@@ -113,24 +105,29 @@ export function parseOpenputmanExport(raw: string): OpenputmanExport {
   }
 
   if (kind === "workspace") {
-    if (!isWorkspace(parsed.workspace)) throw new Error("Invalid workspace in export");
+    const workspace = normalizeWorkspace(parsed.workspace);
+    if (!workspace) throw new Error("Invalid workspace in export");
     return {
       format: "openputman",
       version: 1,
       kind,
       exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : "",
-      workspace: parsed.workspace,
+      workspace,
     };
   }
 
   if (kind === "collection") {
     if (!isCollection(parsed.collection)) throw new Error("Invalid collection in export");
+    const collection = parsed.collection;
     return {
       format: "openputman",
       version: 1,
       kind,
       exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : "",
-      collection: parsed.collection,
+      collection: {
+        ...collection,
+        groupId: typeof collection.groupId === "string" ? collection.groupId : null,
+      },
     };
   }
 
@@ -148,12 +145,17 @@ function remintRequest(request: ApiRequest): ApiRequest {
   return { ...request, id: createId() };
 }
 
-function remintCollection(collection: Collection): Collection {
+function remintCollection(collection: Collection, groupId: string | null = null): Collection {
   return {
     ...collection,
     id: createId(),
+    groupId,
     requests: collection.requests.map(remintRequest),
   };
+}
+
+function remintGroup(group: WebsiteGroup): WebsiteGroup {
+  return { ...group, id: createId() };
 }
 
 export type LoadResult = {
@@ -169,13 +171,26 @@ export function applyExportToWorkspace(
 ): LoadResult {
   switch (payload.kind) {
     case "workspace": {
-      const collections = (payload.workspace?.collections ?? []).map(remintCollection);
+      const incoming = payload.workspace;
+      if (!incoming) throw new Error("Missing workspace in export");
+      const groupIdMap = new Map<string, string>();
+      const groups = incoming.groups.map((group) => {
+        const next = remintGroup(group);
+        groupIdMap.set(group.id, next.id);
+        return next;
+      });
+      const collections = incoming.collections.map((collection) =>
+        remintCollection(
+          collection,
+          collection.groupId ? (groupIdMap.get(collection.groupId) ?? null) : null,
+        ),
+      );
       const workspace: Workspace = {
         version: 1,
-        environments: payload.workspace?.environments ?? [],
-        activeEnvironmentId: payload.workspace?.activeEnvironmentId ?? null,
-        collections:
-          collections.length > 0 ? collections : current.collections.map(remintCollection),
+        groups,
+        environments: incoming.environments ?? [],
+        activeEnvironmentId: incoming.activeEnvironmentId ?? null,
+        collections: collections.length > 0 ? collections : current.collections,
       };
       const first = workspace.collections[0];
       return {
@@ -186,7 +201,7 @@ export function applyExportToWorkspace(
     }
     case "collection": {
       if (!payload.collection) throw new Error("Missing collection in export");
-      const collection = remintCollection(payload.collection);
+      const collection = remintCollection(payload.collection, null);
       return {
         workspace: {
           ...current,
@@ -205,7 +220,7 @@ export function applyExportToWorkspace(
           : current.collections[0]?.id;
 
       if (!targetId) {
-        const collection = emptyCollection("Imported");
+        const collection = emptyCollection("Imported", null);
         collection.requests = [request];
         return {
           workspace: { ...current, collections: [collection] },
