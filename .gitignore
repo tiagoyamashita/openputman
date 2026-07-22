@@ -144,3 +144,7 @@ vite.config.ts.timestamp-*
 
 # Openputman / local tooling
 graphify-out/
+
+# Vercel static output (copied from client/dist at build time)
+/public
+

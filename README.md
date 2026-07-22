@@ -30,6 +30,21 @@ npm run dev
 
 The Vite dev server proxies `/auth` and `/api` to the Express server. Guest mode works without OAuth credentials; **Send** still uses the local proxy.
 
+## Deploy (Vercel)
+
+Connect this repo as an Express project (root directory stays `/`). The root `package.json` `main` points at `server/src/index.ts`, and `vercel.json` builds the Vite client into `public/` for the CDN.
+
+Set these environment variables in the Vercel project:
+
+| Variable | Notes |
+|----------|--------|
+| `SESSION_SECRET` | Required in production |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional; needed for Gist sync |
+| `CLIENT_ORIGIN` | Optional; defaults to the Vercel URL |
+| `GITHUB_CALLBACK_URL` | Optional; defaults to `https://<vercel-url>/auth/github/callback` |
+
+Update the GitHub OAuth App homepage/callback to your production domain when enabling sign-in.
+
 ## Storage
 
 | Mode | Where data lives |
