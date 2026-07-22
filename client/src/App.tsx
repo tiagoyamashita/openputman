@@ -6,6 +6,7 @@ import {
   proxyRequest,
   saveWorkspace,
 } from "./api";
+import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
   emptyRequest,
@@ -22,24 +23,6 @@ type ResponseTab = "body" | "headers";
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
 
-function Landing() {
-  return (
-    <div className="landing">
-      <div className="landing-card">
-        <img src="/logo.png" alt="Openputman" />
-        <h1>Openputman</h1>
-        <p>
-          A Postman-like API client that stores your collections in a private GitHub
-          Gist — no app database.
-        </p>
-        <a className="btn btn-primary" href="/auth/github">
-          Sign in with GitHub
-        </a>
-      </div>
-    </div>
-  );
-}
-
 function findSelection(
   workspace: Workspace,
   collectionId: string | null,
@@ -52,6 +35,17 @@ function findSelection(
     collection.requests.find((r) => r.id === requestId) ?? collection.requests[0];
   if (!request) return null;
   return { collectionId: collection.id, requestId: request.id, request };
+}
+
+function selectFirst(workspace: Workspace): {
+  collectionId: string | null;
+  requestId: string | null;
+} {
+  const first = workspace.collections[0];
+  return {
+    collectionId: first?.id ?? null,
+    requestId: first?.requests[0]?.id ?? null,
+  };
 }
 
 export default function App() {
@@ -81,12 +75,24 @@ export default function App() {
           if (cancelled) return;
           setWorkspace(loaded.workspace);
           setGistId(loaded.gistId);
-          const first = loaded.workspace.collections[0];
-          setCollectionId(first?.id ?? null);
-          setRequestId(first?.requests[0]?.id ?? null);
+          const sel = selectFirst(loaded.workspace);
+          setCollectionId(sel.collectionId);
+          setRequestId(sel.requestId);
+        } else {
+          const local = loadLocalWorkspace();
+          setWorkspace(local);
+          setGistId(null);
+          const sel = selectFirst(local);
+          setCollectionId(sel.collectionId);
+          setRequestId(sel.requestId);
         }
       } catch (err) {
         if (!cancelled) {
+          const local = loadLocalWorkspace();
+          setWorkspace(local);
+          const sel = selectFirst(local);
+          setCollectionId(sel.collectionId);
+          setRequestId(sel.requestId);
           setError(err instanceof Error ? err.message : "Failed to start");
         }
       } finally {
@@ -154,8 +160,12 @@ export default function App() {
     setSaving(true);
     setError(null);
     try {
-      const result = await saveWorkspace(workspace, gistId);
-      setGistId(result.gistId);
+      if (user) {
+        const result = await saveWorkspace(workspace, gistId);
+        setGistId(result.gistId);
+      } else {
+        saveLocalWorkspace(workspace);
+      }
       setDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -199,12 +209,19 @@ export default function App() {
   }
 
   async function handleLogout() {
+    if (workspace) {
+      saveLocalWorkspace(workspace);
+    }
     await apiLogout();
     setUser(null);
-    setWorkspace(null);
     setGistId(null);
     setResponse(null);
     setDirty(false);
+    const local = loadLocalWorkspace();
+    setWorkspace(local);
+    const sel = selectFirst(local);
+    setCollectionId(sel.collectionId);
+    setRequestId(sel.requestId);
   }
 
   if (booting) {
@@ -213,10 +230,6 @@ export default function App() {
         <p className="muted">Loading Openputman…</p>
       </div>
     );
-  }
-
-  if (!user) {
-    return <Landing />;
   }
 
   if (!workspace || !selection) {
@@ -228,6 +241,17 @@ export default function App() {
   }
 
   const { request } = selection;
+  const saveLabel = user
+    ? saving
+      ? "Saving…"
+      : dirty
+        ? "Save to GitHub"
+        : "Saved"
+    : saving
+      ? "Saving…"
+      : dirty
+        ? "Save locally"
+        : "Saved";
 
   return (
     <div className="app-shell">
@@ -236,20 +260,32 @@ export default function App() {
           <img src="/logo.png" alt="" />
           <div>
             <h1>Openputman</h1>
-            <span>Collections live in your GitHub Gist</span>
+            <span>
+              {user
+                ? "Collections sync to your GitHub Gist"
+                : "Collections save in this browser (local storage)"}
+            </span>
           </div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-primary" onClick={handleSave} disabled={saving || !dirty}>
-            {saving ? "Saving…" : dirty ? "Save to GitHub" : "Saved"}
+            {saveLabel}
           </button>
-          <div className="user-chip">
-            <img src={user.avatar} alt="" />
-            <span>{user.login}</span>
-          </div>
-          <button className="btn" onClick={handleLogout}>
-            Log out
-          </button>
+          {user ? (
+            <>
+              <div className="user-chip">
+                <img src={user.avatar} alt="" />
+                <span>{user.login}</span>
+              </div>
+              <button className="btn" onClick={handleLogout}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <a className="btn" href="/auth/github">
+              Sign in with GitHub
+            </a>
+          )}
         </div>
       </header>
 
