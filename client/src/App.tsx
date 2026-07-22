@@ -469,7 +469,7 @@ export default function App() {
     );
   }
 
-  if (!workspace || !project || !selection) {
+  if (!workspace || !project) {
     return (
       <div className="landing">
         <p className="muted">No workspace loaded.</p>
@@ -477,7 +477,7 @@ export default function App() {
     );
   }
 
-  const { request } = selection;
+  const request = selection?.request ?? null;
   const saveLabel = user
     ? saving
       ? "Saving…"
@@ -551,33 +551,41 @@ export default function App() {
         </header>
 
         <div className="request-bar">
-          <select
-            value={request.method}
-            onChange={(e) => updateRequest({ method: e.target.value })}
-          >
-            {METHODS.map((method) => (
-              <option key={method} value={method}>
-                {method}
-              </option>
-            ))}
-          </select>
-          <input
-            value={request.url}
-            onChange={(e) => updateRequest({ url: e.target.value })}
-            placeholder="https://api.example.com/path"
-          />
-          <input
-            value={request.name}
-            onChange={(e) => updateRequest({ name: e.target.value })}
-            placeholder="Request name"
-            style={{ maxWidth: 160 }}
-          />
-          <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-            {sending ? "Sending…" : "Send"}
-          </button>
-          <button className="btn" type="button" onClick={handleExportRequest}>
-            Export request
-          </button>
+          {request ? (
+            <>
+              <select
+                value={request.method}
+                onChange={(e) => updateRequest({ method: e.target.value })}
+              >
+                {METHODS.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={request.url}
+                onChange={(e) => updateRequest({ url: e.target.value })}
+                placeholder="https://api.example.com/path"
+              />
+              <input
+                value={request.name}
+                onChange={(e) => updateRequest({ name: e.target.value })}
+                placeholder="Request name"
+                style={{ maxWidth: 160 }}
+              />
+              <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+                {sending ? "Sending…" : "Send"}
+              </button>
+              <button className="btn" type="button" onClick={handleExportRequest}>
+                Export request
+              </button>
+            </>
+          ) : (
+            <p className="muted request-bar-empty">
+              This project is empty — add a website, then a collection and request.
+            </p>
+          )}
         </div>
       </div>
 
@@ -631,7 +639,7 @@ export default function App() {
                 group={group}
                 collections={project.collections.filter((c) => c.groupId === group.id)}
                 allGroups={project.groups}
-                activeRequestId={selection.requestId}
+                activeRequestId={selection?.requestId ?? ""}
                 onAddCollection={() => addCollection(group.id)}
                 onAddRequest={addRequest}
                 onSelectRequest={(cid, rid) => {
@@ -652,7 +660,7 @@ export default function App() {
                 (c) => !c.groupId || !project.groups.some((g) => g.id === c.groupId),
               )}
               allGroups={project.groups}
-              activeRequestId={selection.requestId}
+              activeRequestId={selection?.requestId ?? ""}
               onAddCollection={() => addCollection(null)}
               onAddRequest={addRequest}
               onSelectRequest={(cid, rid) => {
@@ -672,6 +680,15 @@ export default function App() {
         <section className="main-pane">
           {error ? <div className="error-banner">{error}</div> : null}
 
+          {!request ? (
+            <div className="empty-project-pane">
+              <p className="muted">
+                No websites yet. Use <strong>+ site</strong> to add one, then create collections
+                and requests.
+              </p>
+            </div>
+          ) : (
+            <>
           <div className="editor-pane">
             <div className="tabs">
               <button
@@ -815,6 +832,8 @@ export default function App() {
               )}
             </div>
           </div>
+            </>
+          )}
         </section>
       </div>
 

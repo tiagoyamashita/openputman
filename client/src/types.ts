@@ -102,17 +102,22 @@ export function emptyCollection(
 }
 
 export function emptyProject(name = "My Project"): Project {
-  const group = emptyGroup("Example site", "https://httpbin.org");
   return {
     id: createId(),
     name,
-    groups: [group],
-    collections: [emptyCollection("My Collection", group.id)],
+    groups: [],
+    collections: [],
   };
 }
 
 export function emptyWorkspace(): Workspace {
-  const project = emptyProject("My Project");
+  const group = emptyGroup("Example site", "https://httpbin.org");
+  const project: Project = {
+    id: createId(),
+    name: "My Project",
+    groups: [group],
+    collections: [emptyCollection("My Collection", group.id)],
+  };
   return {
     version: 1,
     projects: [project],

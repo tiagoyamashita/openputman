@@ -627,13 +627,17 @@ button {
   font-size: 0.85rem;
 }
 
-.error-banner {
-  margin: 0 12px 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(240, 113, 120, 0.12);
-  border: 1px solid rgba(240, 113, 120, 0.35);
-  color: #ffb4b8;
+.request-bar-empty {
+  margin: 0;
+  padding: 4px 0;
+}
+
+.empty-project-pane {
+  grid-column: 1 / -1;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  color: var(--text-muted);
 }
 
 .linkish {
