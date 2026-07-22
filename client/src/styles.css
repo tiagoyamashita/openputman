@@ -260,8 +260,9 @@ button {
 .request-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  border-radius: 8px;
+  gap: 2px;
+  border-radius: 6px;
+  min-height: 28px;
 }
 
 .request-row.active,
@@ -276,6 +277,8 @@ button {
 
 .request-row .btn-delete {
   margin-right: 4px;
+  padding: 2px 5px;
+  font-size: 0.68rem;
 }
 
 .btn-delete {
@@ -361,18 +364,21 @@ button {
   text-align: left;
   border: none;
   background: transparent;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 4px 8px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  min-height: 0;
 }
 
 .method {
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  min-width: 42px;
+  min-width: 36px;
 }
 
 .method.GET { color: #3ecf8e; }
@@ -389,29 +395,52 @@ button {
 
 .request-bar {
   display: flex;
-  gap: 8px;
-  padding: 12px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   background: #22272e;
+  min-height: 0;
 }
 
 .request-bar select,
 .request-bar input,
-.kv input,
+.kv input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  height: 30px;
+}
+
 .body-editor textarea,
 .tabs-panel textarea {
   background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 8px 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .request-bar select {
-  width: 110px;
+  width: 96px;
+  flex-shrink: 0;
 }
 
 .request-bar input {
   flex: 1;
+  min-width: 0;
+}
+
+.request-bar .btn-primary {
+  padding: 5px 10px;
+  height: 30px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .tabs {
