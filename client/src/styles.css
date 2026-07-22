@@ -773,6 +773,132 @@ button {
   line-height: 1.4;
 }
 
+.env-panel {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.env-hint {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+}
+
+.env-kv {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.env-kv input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+.warn-banner {
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(230, 192, 123, 0.12);
+  border: 1px solid rgba(230, 192, 123, 0.35);
+  color: var(--warning);
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+}
+
+.run-steps {
+  margin: 0 12px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #1c2128;
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
+
+.run-steps ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.run-step-ok {
+  color: var(--success);
+}
+
+.run-step-failed {
+  color: var(--danger);
+}
+
+.run-step-running {
+  color: var(--accent);
+}
+
+.extract-row,
+.reuse-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.extract-row select,
+.extract-row input,
+.reuse-bar input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  height: 30px;
+  min-width: 0;
+}
+
+.extract-row select {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.extract-row input,
+.reuse-bar input {
+  flex: 1;
+}
+
+.response-headers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.response-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.response-header-row code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.reuse-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .workspace {
     grid-template-columns: 1fr;

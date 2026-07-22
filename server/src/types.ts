@@ -6,6 +6,12 @@ export type HeaderRow = {
 
 export type BodyType = "none" | "json" | "raw";
 
+export type RequestExtract = {
+  source: "body" | "header";
+  path: string;
+  variable: string;
+};
+
 export type ApiRequest = {
   id: string;
   name: string;
@@ -14,6 +20,7 @@ export type ApiRequest = {
   headers: HeaderRow[];
   body: string;
   bodyType: BodyType;
+  extracts: RequestExtract[];
 };
 
 export type WebsiteGroup = {
@@ -87,6 +94,7 @@ export function emptyWorkspace(): Workspace {
                 headers: [{ key: "", value: "", enabled: true }],
                 body: "",
                 bodyType: "none",
+                extracts: [],
               },
             ],
           },
@@ -103,12 +111,53 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizeExtract(value: unknown): RequestExtract | null {
+  if (!isRecord(value)) return null;
+  if (value.source !== "body" && value.source !== "header") return null;
+  if (typeof value.path !== "string" || typeof value.variable !== "string") return null;
+  return { source: value.source, path: value.path, variable: value.variable };
+}
+
+function normalizeRequest(value: unknown): ApiRequest {
+  if (!isRecord(value)) {
+    return {
+      id: createId(),
+      name: "New Request",
+      method: "GET",
+      url: "https://httpbin.org/get",
+      headers: [{ key: "", value: "", enabled: true }],
+      body: "",
+      bodyType: "none",
+      extracts: [],
+    };
+  }
+  const bodyType =
+    value.bodyType === "json" || value.bodyType === "raw" || value.bodyType === "none"
+      ? value.bodyType
+      : "none";
+  const extracts = Array.isArray(value.extracts)
+    ? value.extracts.map(normalizeExtract).filter((e): e is RequestExtract => e !== null)
+    : [];
+  return {
+    id: typeof value.id === "string" ? value.id : createId(),
+    name: typeof value.name === "string" ? value.name : "New Request",
+    method: typeof value.method === "string" ? value.method : "GET",
+    url: typeof value.url === "string" ? value.url : "",
+    headers: Array.isArray(value.headers)
+      ? (value.headers as HeaderRow[])
+      : [{ key: "", value: "", enabled: true }],
+    body: typeof value.body === "string" ? value.body : "",
+    bodyType,
+    extracts,
+  };
+}
+
 function normalizeCollection(c: Record<string, unknown>): Collection {
   return {
     id: typeof c.id === "string" ? c.id : createId(),
     name: typeof c.name === "string" ? c.name : "Collection",
     groupId: typeof c.groupId === "string" ? c.groupId : null,
-    requests: Array.isArray(c.requests) ? (c.requests as ApiRequest[]) : [],
+    requests: Array.isArray(c.requests) ? c.requests.map(normalizeRequest) : [],
   };
 }
 

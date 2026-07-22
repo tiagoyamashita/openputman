@@ -37,6 +37,15 @@ function isHeaderRow(value: unknown): boolean {
   );
 }
 
+function isRequestExtract(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.source === "body" || value.source === "header") &&
+    typeof value.path === "string" &&
+    typeof value.variable === "string"
+  );
+}
+
 function isApiRequest(value: unknown): value is ApiRequest {
   return (
     isRecord(value) &&
@@ -47,7 +56,9 @@ function isApiRequest(value: unknown): value is ApiRequest {
     Array.isArray(value.headers) &&
     value.headers.every(isHeaderRow) &&
     typeof value.body === "string" &&
-    (value.bodyType === "none" || value.bodyType === "json" || value.bodyType === "raw")
+    (value.bodyType === "none" || value.bodyType === "json" || value.bodyType === "raw") &&
+    (!("extracts" in value) ||
+      (Array.isArray(value.extracts) && value.extracts.every(isRequestExtract)))
   );
 }
 
@@ -149,7 +160,11 @@ export function parseOpenputmanExport(raw: string): OpenputmanExport {
 }
 
 function remintRequest(request: ApiRequest): ApiRequest {
-  return { ...request, id: createId() };
+  return {
+    ...request,
+    id: createId(),
+    extracts: Array.isArray(request.extracts) ? request.extracts : [],
+  };
 }
 
 function remintCollection(collection: Collection, groupId: string | null = null): Collection {

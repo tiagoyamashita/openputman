@@ -6,6 +6,12 @@ export type HeaderRow = {
 
 export type BodyType = "none" | "json" | "raw";
 
+export type RequestExtract = {
+  source: "body" | "header";
+  path: string;
+  variable: string;
+};
+
 export type ApiRequest = {
   id: string;
   name: string;
@@ -14,6 +20,7 @@ export type ApiRequest = {
   headers: HeaderRow[];
   body: string;
   bodyType: BodyType;
+  extracts: RequestExtract[];
 };
 
 export type WebsiteGroup = {
@@ -69,6 +76,14 @@ export function createId(): string {
   return crypto.randomUUID();
 }
 
+export function emptyEnvironment(name = "Default"): Environment {
+  return {
+    id: createId(),
+    name,
+    variables: {},
+  };
+}
+
 export function emptyRequest(name = "New Request"): ApiRequest {
   return {
     id: createId(),
@@ -78,6 +93,7 @@ export function emptyRequest(name = "New Request"): ApiRequest {
     headers: [{ key: "", value: "", enabled: true }],
     body: "",
     bodyType: "none",
+    extracts: [],
   };
 }
 
@@ -131,12 +147,60 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizeExtract(value: unknown): RequestExtract | null {
+  if (!isRecord(value)) return null;
+  if (value.source !== "body" && value.source !== "header") return null;
+  if (typeof value.path !== "string" || typeof value.variable !== "string") return null;
+  return { source: value.source, path: value.path, variable: value.variable };
+}
+
+function normalizeRequest(value: unknown): ApiRequest {
+  if (!isRecord(value)) return emptyRequest();
+  const bodyType =
+    value.bodyType === "json" || value.bodyType === "raw" || value.bodyType === "none"
+      ? value.bodyType
+      : "none";
+  const headers = Array.isArray(value.headers)
+    ? (value.headers as HeaderRow[])
+    : [{ key: "", value: "", enabled: true }];
+  const extracts = Array.isArray(value.extracts)
+    ? value.extracts.map(normalizeExtract).filter((e): e is RequestExtract => e !== null)
+    : [];
+  return {
+    id: typeof value.id === "string" ? value.id : createId(),
+    name: typeof value.name === "string" ? value.name : "New Request",
+    method: typeof value.method === "string" ? value.method : "GET",
+    url: typeof value.url === "string" ? value.url : "",
+    headers,
+    body: typeof value.body === "string" ? value.body : "",
+    bodyType,
+    extracts,
+  };
+}
+
 function normalizeCollection(c: Record<string, unknown>): Collection {
   return {
     id: typeof c.id === "string" ? c.id : createId(),
     name: typeof c.name === "string" ? c.name : "Collection",
     groupId: typeof c.groupId === "string" ? c.groupId : null,
-    requests: Array.isArray(c.requests) ? (c.requests as ApiRequest[]) : [],
+    requests: Array.isArray(c.requests) ? c.requests.map(normalizeRequest) : [],
+  };
+}
+
+function normalizeEnvironment(value: unknown): Environment {
+  if (!isRecord(value)) return emptyEnvironment();
+  const variables =
+    isRecord(value.variables)
+      ? Object.fromEntries(
+          Object.entries(value.variables).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : {};
+  return {
+    id: typeof value.id === "string" ? value.id : createId(),
+    name: typeof value.name === "string" ? value.name : "Environment",
+    variables,
   };
 }
 
@@ -166,10 +230,13 @@ export function normalizeWorkspace(value: unknown): Workspace | null {
   if (!isRecord(value) || value.version !== 1) return null;
 
   const environments = Array.isArray(value.environments)
-    ? (value.environments as Environment[])
+    ? value.environments.map(normalizeEnvironment)
     : [];
   const activeEnvironmentId =
-    typeof value.activeEnvironmentId === "string" ? value.activeEnvironmentId : null;
+    typeof value.activeEnvironmentId === "string" &&
+    environments.some((env) => env.id === value.activeEnvironmentId)
+      ? value.activeEnvironmentId
+      : (environments[0]?.id ?? null);
 
   if (Array.isArray(value.projects) && value.projects.length > 0) {
     const projects = value.projects.filter(isRecord).map(normalizeProject);
@@ -216,6 +283,31 @@ export function getActiveProject(workspace: Workspace): Project | null {
     workspace.projects[0] ??
     null
   );
+}
+
+export function getActiveEnvironment(workspace: Workspace): Environment | null {
+  return (
+    workspace.environments.find((env) => env.id === workspace.activeEnvironmentId) ??
+    workspace.environments[0] ??
+    null
+  );
+}
+
+export function ensureActiveEnvironment(workspace: Workspace): Workspace {
+  if (workspace.environments.length > 0 && workspace.activeEnvironmentId) {
+    const exists = workspace.environments.some((env) => env.id === workspace.activeEnvironmentId);
+    if (exists) return workspace;
+    return { ...workspace, activeEnvironmentId: workspace.environments[0]!.id };
+  }
+  if (workspace.environments.length > 0) {
+    return { ...workspace, activeEnvironmentId: workspace.environments[0]!.id };
+  }
+  const env = emptyEnvironment();
+  return {
+    ...workspace,
+    environments: [env],
+    activeEnvironmentId: env.id,
+  };
 }
 
 export function withActiveProject(
