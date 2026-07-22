@@ -43,8 +43,15 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 52px 1fr;
+  grid-template-rows: auto 1fr;
   height: 100%;
+}
+
+.header-stack {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #2c323a 0%, #232830 100%);
 }
 
 .topbar {
@@ -53,8 +60,8 @@ button {
   justify-content: space-between;
   gap: 12px;
   padding: 0 14px;
+  min-height: 44px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #2c323a 0%, #232830 100%);
 }
 
 .brand {
@@ -389,17 +396,30 @@ button {
 
 .main-pane {
   display: grid;
-  grid-template-rows: auto 1fr 1fr;
+  grid-template-rows: auto minmax(110px, 0.32fr) minmax(0, 1fr);
   min-height: 0;
+  height: 100%;
+}
+
+.editor-pane {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.editor-pane .tabs-panel {
+  min-height: 0;
+  overflow: auto;
 }
 
 .request-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  background: #22272e;
+  padding: 6px 14px;
+  background: #1f242b;
   min-height: 0;
 }
 
@@ -477,22 +497,49 @@ button {
   align-items: center;
 }
 
-.body-editor textarea,
-.response-body {
+.body-editor textarea {
   width: 100%;
-  min-height: 140px;
+  min-height: 72px;
+  max-height: 160px;
   font-family: var(--mono);
   font-size: 0.85rem;
   line-height: 1.45;
   resize: vertical;
 }
 
+.response-body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
 .response-pane {
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   background: #1b1f25;
+  overflow: hidden;
+}
+
+.response-pane .tabs-panel {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.response-pane .tabs-panel .response-body,
+.response-pane .tabs-panel pre.response-body {
+  flex: 1;
+  min-height: 180px;
 }
 
 .response-meta {

@@ -405,62 +405,94 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <img src="/logo.png" alt="" />
-          <div>
-            <h1>OpenPutMan</h1>
-            <span>
-              {user
-                ? "Collections sync to your GitHub Gist"
-                : "Collections save in this browser (local storage)"}
-            </span>
+      <div className="header-stack">
+        <header className="topbar">
+          <div className="brand">
+            <img src="/logo.png" alt="" />
+            <div>
+              <h1>OpenPutMan</h1>
+              <span>
+                {user
+                  ? "Collections sync to your GitHub Gist"
+                  : "Collections save in this browser (local storage)"}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="topbar-actions">
-          <button className="btn" type="button" onClick={handleExportAll}>
-            Export all
-          </button>
-          <button
-            className="btn"
-            type="button"
-            onClick={() => loadInputRef.current?.click()}
+          <div className="topbar-actions">
+            <button className="btn" type="button" onClick={handleExportAll}>
+              Export all
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => loadInputRef.current?.click()}
+            >
+              Load
+            </button>
+            <input
+              ref={loadInputRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(e) => void handleLoadFile(e.target.files?.[0] ?? null)}
+            />
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving || !dirty}>
+              {saveLabel}
+            </button>
+            {user ? (
+              <>
+                <div className="user-chip">
+                  <img src={user.avatar} alt="" />
+                  <span>{user.login}</span>
+                </div>
+                <button className="btn" onClick={handleLogout}>
+                  Log out
+                </button>
+              </>
+            ) : (
+              <a className="btn btn-github" href="/auth/github">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+                  />
+                </svg>
+                Sign in with GitHub
+              </a>
+            )}
+          </div>
+        </header>
+
+        <div className="request-bar">
+          <select
+            value={request.method}
+            onChange={(e) => updateRequest({ method: e.target.value })}
           >
-            Load
-          </button>
+            {METHODS.map((method) => (
+              <option key={method} value={method}>
+                {method}
+              </option>
+            ))}
+          </select>
           <input
-            ref={loadInputRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => void handleLoadFile(e.target.files?.[0] ?? null)}
+            value={request.url}
+            onChange={(e) => updateRequest({ url: e.target.value })}
+            placeholder="https://api.example.com/path"
           />
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !dirty}>
-            {saveLabel}
+          <input
+            value={request.name}
+            onChange={(e) => updateRequest({ name: e.target.value })}
+            placeholder="Request name"
+            style={{ maxWidth: 160 }}
+          />
+          <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+            {sending ? "Sending…" : "Send"}
           </button>
-          {user ? (
-            <>
-              <div className="user-chip">
-                <img src={user.avatar} alt="" />
-                <span>{user.login}</span>
-              </div>
-              <button className="btn" onClick={handleLogout}>
-                Log out
-              </button>
-            </>
-          ) : (
-            <a className="btn btn-github" href="/auth/github">
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-                />
-              </svg>
-              Sign in with GitHub
-            </a>
-          )}
+          <button className="btn" type="button" onClick={handleExportRequest}>
+            Export request
+          </button>
         </div>
-      </header>
+      </div>
 
       <div className="workspace">
         <aside className="sidebar">
@@ -523,37 +555,7 @@ export default function App() {
         <section className="main-pane">
           {error ? <div className="error-banner">{error}</div> : null}
 
-          <div className="request-bar">
-            <select
-              value={request.method}
-              onChange={(e) => updateRequest({ method: e.target.value })}
-            >
-              {METHODS.map((method) => (
-                <option key={method} value={method}>
-                  {method}
-                </option>
-              ))}
-            </select>
-            <input
-              value={request.url}
-              onChange={(e) => updateRequest({ url: e.target.value })}
-              placeholder="https://api.example.com/path"
-            />
-            <input
-              value={request.name}
-              onChange={(e) => updateRequest({ name: e.target.value })}
-              placeholder="Request name"
-              style={{ maxWidth: 180 }}
-            />
-            <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-              {sending ? "Sending…" : "Send"}
-            </button>
-            <button className="btn" type="button" onClick={handleExportRequest}>
-              Export request
-            </button>
-          </div>
-
-          <div>
+          <div className="editor-pane">
             <div className="tabs">
               <button
                 className={`tab${editorTab === "headers" ? " active" : ""}`}
