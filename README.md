@@ -1,18 +1,18 @@
-# Openputman
+# OpenPutMan
 
-Postman-like API client for the browser. Sign in with GitHub; collections are stored in a **private Gist** in your account — no app database.
+Postman-like API client for the browser. Use it without an account (collections save in **local storage**), or sign in with GitHub to sync a **private Gist** — no app database.
 
 ## Stack
 
 - `client/` — Vite + React + TypeScript
-- `server/` — Express + TypeScript (OAuth, Gist sync, request proxy)
+- `server/` — Express + TypeScript (optional OAuth, Gist sync, request proxy)
 
 ## Setup
 
-1. Create a [GitHub OAuth App](https://github.com/settings/developers):
+1. (Optional) Create a [GitHub OAuth App](https://github.com/settings/developers) for cloud sync:
    - **Homepage URL:** `http://localhost:5173`
    - **Authorization callback URL:** `http://localhost:4000/auth/github/callback`
-2. Copy env file and fill in the Client ID / Secret:
+2. Copy env file and fill in values if using GitHub:
 
 ```bash
 cp .env.example .env
@@ -28,15 +28,32 @@ npm run dev
 - App UI: http://localhost:5173  
 - API server: http://localhost:4000  
 
-The Vite dev server proxies `/auth` and `/api` to the Express server. Load env vars for the server from the repo root `.env` (or `server/.env`).
+The Vite dev server proxies `/auth` and `/api` to the Express server. Guest mode works without OAuth credentials; **Send** still uses the local proxy.
 
-## Scopes
+## Storage
+
+| Mode | Where data lives |
+|------|------------------|
+| Guest (default) | Browser `localStorage` (`openputman-workspace`) |
+| Signed in | Private GitHub Gist described as `openputman-workspace` |
+
+## Website groups
+
+Collections are organized under **website groups** in the sidebar. Use **+ site** to add a group (name + optional URL), **+ collection** inside a group, and the dropdown on each collection to move it between groups.
+
+## Export / Load
+
+- **Export all** (top bar) — download the full workspace JSON  
+- **Load** (top bar) — restore a previously exported workspace, collection, or request file  
+- **Export request** (next to Send) — download only the current request  
+
+## OpenAPI import
+
+Use **OpenAPI** in the collections sidebar to paste JSON/YAML, upload a file, or load a URL. OpenPutMan creates a collection from `info.title` and one request per path operation (method, URL, sample headers/body when available). Supports OpenAPI 3.x and Swagger 2.0.
+
+## Scopes (GitHub only)
 
 OAuth requests `read:user` and `gist`.
-
-## How storage works
-
-On first login, Openputman creates a private Gist described as `openputman-workspace` containing `openputman-workspace.json`. **Save to GitHub** updates that Gist.
 
 ## Scripts
 

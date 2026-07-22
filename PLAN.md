@@ -1,4 +1,4 @@
-# Openputman: Postman-like client with GitHub storage
+# OpenPutMan: Postman-like client with GitHub storage
 
 ## Product MVP
 

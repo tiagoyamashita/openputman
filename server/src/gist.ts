@@ -2,7 +2,7 @@ import {
   emptyWorkspace,
   GIST_DESCRIPTION,
   GIST_FILENAME,
-  isWorkspace,
+  normalizeWorkspace,
   type Workspace,
 } from "./types.js";
 
@@ -48,7 +48,7 @@ function parseWorkspaceFromGist(gist: Gist): Workspace | null {
   if (!file?.content) return null;
   try {
     const parsed: unknown = JSON.parse(file.content);
-    return isWorkspace(parsed) ? parsed : null;
+    return normalizeWorkspace(parsed);
   } catch {
     return null;
   }

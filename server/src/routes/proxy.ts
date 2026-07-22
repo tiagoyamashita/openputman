@@ -1,8 +1,6 @@
 import net from "node:net";
 import { Router } from "express";
 import ipaddr from "ipaddr.js";
-import { requireAuth } from "../auth.js";
-
 const router = Router();
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -74,7 +72,7 @@ type ProxyBody = {
   body?: string | null;
 };
 
-router.post("/proxy", requireAuth, async (req, res) => {
+router.post("/proxy", async (req, res) => {
   const started = Date.now();
   try {
     const payload = req.body as ProxyBody;
