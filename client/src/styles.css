@@ -43,8 +43,15 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 52px 1fr;
+  grid-template-rows: auto 1fr;
   height: 100%;
+}
+
+.header-stack {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #2c323a 0%, #232830 100%);
 }
 
 .topbar {
@@ -53,8 +60,8 @@ button {
   justify-content: space-between;
   gap: 12px;
   padding: 0 14px;
+  min-height: 44px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #2c323a 0%, #232830 100%);
 }
 
 .brand {
@@ -166,6 +173,38 @@ button {
   min-height: 0;
 }
 
+.project-menu {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: #1c2128;
+}
+
+.project-menu-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.project-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  height: 30px;
+}
+
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -208,15 +247,92 @@ button {
 }
 
 .website-group-toggle {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   gap: 8px;
   text-align: left;
   border: none;
   background: transparent;
-  padding: 10px 10px 10px 8px;
+  padding: 10px 8px 10px 8px;
   color: inherit;
+}
+
+.website-group-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding-right: 6px;
+}
+
+.website-group-row .btn-delete {
+  margin-top: 8px;
+}
+
+.collection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.collection-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.request-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  min-height: 28px;
+}
+
+.request-row.active,
+.request-row:hover {
+  background: #313843;
+}
+
+.request-row .request-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.request-row .btn-delete {
+  margin-right: 4px;
+  padding: 2px 5px;
+  font-size: 0.68rem;
+}
+
+.btn-delete {
+  border: none;
+  background: transparent;
+  color: #f07178;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.btn-delete:hover {
+  background: rgba(240, 113, 120, 0.14);
 }
 
 .website-group-toggle:hover {
@@ -272,20 +388,6 @@ button {
   padding: 6px 8px 10px;
 }
 
-.website-group-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 8px 10px;
-}
-
-.collection-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .group-select {
   max-width: 90px;
   background: var(--bg-input);
@@ -296,39 +398,26 @@ button {
   color: var(--text-muted);
 }
 
-.collection-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .request-item {
   width: 100%;
   text-align: left;
   border: none;
   background: transparent;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 4px 8px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-}
-
-.request-item:hover,
-.request-item.active {
-  background: #313843;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  min-height: 0;
 }
 
 .method {
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  min-width: 42px;
+  min-width: 36px;
 }
 
 .method.GET { color: #3ecf8e; }
@@ -339,35 +428,71 @@ button {
 
 .main-pane {
   display: grid;
-  grid-template-rows: auto 1fr 1fr;
+  grid-template-rows: auto minmax(110px, 0.32fr) minmax(0, 1fr);
   min-height: 0;
+  height: 100%;
+}
+
+.editor-pane {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.editor-pane .tabs-panel {
+  min-height: 0;
+  overflow: auto;
 }
 
 .request-bar {
   display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-  background: #22272e;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #1f242b;
+  min-height: 0;
 }
 
 .request-bar select,
 .request-bar input,
-.kv input,
+.kv input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  height: 30px;
+}
+
 .body-editor textarea,
 .tabs-panel textarea {
   background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 8px 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .request-bar select {
-  width: 110px;
+  width: 96px;
+  flex-shrink: 0;
 }
 
 .request-bar input {
   flex: 1;
+  min-width: 0;
+}
+
+.request-bar .btn-primary {
+  padding: 5px 10px;
+  height: 30px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .tabs {
@@ -404,22 +529,49 @@ button {
   align-items: center;
 }
 
-.body-editor textarea,
-.response-body {
+.body-editor textarea {
   width: 100%;
-  min-height: 140px;
+  min-height: 72px;
+  max-height: 160px;
   font-family: var(--mono);
   font-size: 0.85rem;
   line-height: 1.45;
   resize: vertical;
 }
 
+.response-body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
 .response-pane {
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   background: #1b1f25;
+  overflow: hidden;
+}
+
+.response-pane .tabs-panel {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.response-pane .tabs-panel .response-body,
+.response-pane .tabs-panel pre.response-body {
+  flex: 1;
+  min-height: 180px;
 }
 
 .response-meta {
