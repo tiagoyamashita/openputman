@@ -7,6 +7,7 @@ import {
   saveWorkspace,
 } from "./api";
 import ImportOpenApiModal from "./ImportOpenApiModal";
+import ExportImportModal from "./ExportImportModal";
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
@@ -65,6 +66,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +285,9 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <button className="btn" onClick={() => setExportOpen(true)}>
+            Export / Load
+          </button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving || !dirty}>
             {saveLabel}
           </button>
@@ -533,6 +538,20 @@ export default function App() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={importCollection}
+      />
+      <ExportImportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        workspace={workspace}
+        collectionId={collectionId}
+        requestId={requestId}
+        onLoaded={({ workspace: next, collectionId: nextCollectionId, requestId: nextRequestId }) => {
+          setWorkspace(next);
+          setCollectionId(nextCollectionId);
+          setRequestId(nextRequestId);
+          setDirty(true);
+          setError(null);
+        }}
       />
     </div>
   );
