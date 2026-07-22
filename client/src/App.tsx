@@ -13,6 +13,7 @@ import {
   downloadExport,
   parseOpenputmanExport,
 } from "./exportFormat";
+import { formatJsonBody } from "./json";
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
@@ -804,7 +805,7 @@ export default function App() {
               {!response ? (
                 <p className="muted">Send a request to see the response.</p>
               ) : responseTab === "body" ? (
-                <textarea className="response-body" readOnly value={formatBody(response.body)} />
+                <textarea className="response-body" readOnly value={formatJsonBody(response.body)} />
               ) : (
                 <pre className="response-body">
                   {Object.entries(response.headers)
@@ -824,16 +825,6 @@ export default function App() {
       />
     </div>
   );
-}
-
-function formatBody(body: string): string {
-  const trimmed = body.trim();
-  if (!trimmed) return body;
-  try {
-    return JSON.stringify(JSON.parse(trimmed), null, 2);
-  } catch {
-    return body;
-  }
 }
 
 type GroupBlockProps = {

@@ -10,6 +10,7 @@ import {
   type WebsiteGroup,
   type Workspace,
 } from "./types";
+import { safeJsonParse } from "./json";
 
 export type ExportKind = "workspace" | "collection" | "request";
 
@@ -92,10 +93,12 @@ export function buildExport(
 }
 
 export function parseOpenputmanExport(raw: string): OpenputmanExport {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
+  if (!raw.trim()) {
+    throw new Error("Export file is empty");
+  }
+
+  const parsed: unknown = safeJsonParse(raw);
+  if (parsed === undefined) {
     throw new Error("Export file must be valid JSON");
   }
 

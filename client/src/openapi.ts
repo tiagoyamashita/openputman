@@ -1,4 +1,5 @@
 import { load as loadYaml } from "js-yaml";
+import { safeJsonParse } from "./json";
 import {
   createId,
   type ApiRequest,
@@ -226,10 +227,12 @@ function operationName(
 }
 
 export function parseOpenApiDocument(raw: string): Collection {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
+  if (!raw.trim()) {
+    throw new Error("OpenAPI document is empty");
+  }
+
+  let parsed: unknown = safeJsonParse(raw);
+  if (parsed === undefined) {
     parsed = loadYaml(raw);
   }
 

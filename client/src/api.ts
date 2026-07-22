@@ -1,19 +1,14 @@
 import type { ProxyResponse, User, Workspace } from "./types";
+import { safeJsonParse } from "./json";
 
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
-  if (!text.trim()) {
+  const data = safeJsonParse(text) as (T & { error?: string }) | undefined;
+  if (data === undefined) {
     if (!res.ok) {
       throw new Error(`Request failed (${res.status})`);
     }
-    throw new Error("Empty response from server");
-  }
-
-  let data: T & { error?: string };
-  try {
-    data = JSON.parse(text) as T & { error?: string };
-  } catch {
-    throw new Error(`Invalid JSON from server (${res.status})`);
+    throw new Error("Empty or invalid JSON from server");
   }
 
   if (!res.ok) {
@@ -23,13 +18,25 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export async function fetchMe(): Promise<User | null> {
-  const res = await fetch("/auth/me", { credentials: "include" });
-  if (res.status === 401) return null;
-  return parseJson<User>(res);
+  try {
+    const res = await fetch("/auth/me", { credentials: "include" });
+    if (res.status === 401 || res.status === 403) return null;
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text.trim()) return null;
+    const data = safeJsonParse(text) as User | undefined;
+    return data ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/auth/logout", { method: "POST", credentials: "include" });
+  try {
+    await fetch("/auth/logout", { method: "POST", credentials: "include" });
+  } catch {
+    // ignore offline logout failures
+  }
 }
 
 export async function loadWorkspace(): Promise<{ workspace: Workspace; gistId: string }> {
@@ -63,17 +70,10 @@ export async function proxyRequest(input: {
     body: JSON.stringify(input),
   });
   const text = await res.text();
-  if (!text.trim()) {
+  const data = safeJsonParse(text) as (ProxyResponse & { error?: string }) | undefined;
+  if (data === undefined) {
     throw new Error(res.ok ? "Empty proxy response" : `Proxy failed (${res.status})`);
   }
-
-  let data: ProxyResponse & { error?: string };
-  try {
-    data = JSON.parse(text) as ProxyResponse & { error?: string };
-  } catch {
-    throw new Error(`Invalid proxy response (${res.status})`);
-  }
-
   if (!res.ok) {
     throw new Error(data.error ?? `Proxy failed (${res.status})`);
   }
