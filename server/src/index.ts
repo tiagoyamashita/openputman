@@ -1,3 +1,6 @@
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import session from "express-session";
 import cors from "cors";
@@ -10,6 +13,8 @@ import proxyRoutes from "./routes/proxy.js";
 assertAuthConfig();
 
 const app = express();
+const here = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.resolve(here, "../../public");
 
 app.set("trust proxy", 1);
 app.use(
@@ -42,6 +47,19 @@ app.get("/api/health", (_req, res) => {
 app.use("/auth", authRoutes);
 app.use("/api", workspaceRoutes);
 app.use("/api", proxyRoutes);
+
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/auth")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(publicDir, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 export default app;
 
