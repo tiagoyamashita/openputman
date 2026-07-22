@@ -8,18 +8,27 @@ import {
 } from "./api";
 import ImportOpenApiModal from "./ImportOpenApiModal";
 import {
+  applyExtracts,
+  extractFromResponse,
+  isSuccessStatus,
+} from "./extract";
+import {
   applyExportToWorkspace,
   buildExport,
   downloadExport,
   parseOpenputmanExport,
 } from "./exportFormat";
+import { collectUnresolved, interpolate } from "./interpolate";
 import { formatJsonBody } from "./json";
 import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
+  emptyEnvironment,
   emptyGroup,
   emptyProject,
   emptyRequest,
+  ensureActiveEnvironment,
+  getActiveEnvironment,
   getActiveProject,
   normalizeWorkspace,
   withActiveProject,
@@ -29,13 +38,21 @@ import {
   type HeaderRow,
   type Project,
   type ProxyResponse,
+  type RequestExtract,
   type User,
   type WebsiteGroup,
   type Workspace,
 } from "./types";
 
-type EditorTab = "headers" | "body";
+type EditorTab = "headers" | "body" | "extracts";
 type ResponseTab = "body" | "headers";
+
+type RunStepStatus = {
+  requestId: string;
+  name: string;
+  status: "pending" | "running" | "ok" | "failed";
+  detail?: string;
+};
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
 
@@ -80,6 +97,12 @@ export default function App() {
   const [dirty, setDirty] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [envPanelOpen, setEnvPanelOpen] = useState(false);
+  const [unresolvedWarning, setUnresolvedWarning] = useState<string | null>(null);
+  const [bodyExtractPath, setBodyExtractPath] = useState("token");
+  const [bodyExtractVar, setBodyExtractVar] = useState("token");
+  const [runSteps, setRunSteps] = useState<RunStepStatus[]>([]);
+  const [runningCollection, setRunningCollection] = useState(false);
   const loadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -92,14 +115,16 @@ export default function App() {
         if (me) {
           const loaded = await loadWorkspace();
           if (cancelled) return;
-          const ws = normalizeWorkspace(loaded.workspace) ?? loaded.workspace;
+          const ws = ensureActiveEnvironment(
+            normalizeWorkspace(loaded.workspace) ?? loaded.workspace,
+          );
           setWorkspace(ws);
           setGistId(loaded.gistId);
           const sel = selectFirst(getActiveProject(ws));
           setCollectionId(sel.collectionId);
           setRequestId(sel.requestId);
         } else {
-          const local = loadLocalWorkspace();
+          const local = ensureActiveEnvironment(loadLocalWorkspace());
           setWorkspace(local);
           setGistId(null);
           const sel = selectFirst(getActiveProject(local));
@@ -108,7 +133,7 @@ export default function App() {
         }
       } catch (err) {
         if (!cancelled) {
-          const local = loadLocalWorkspace();
+          const local = ensureActiveEnvironment(loadLocalWorkspace());
           setWorkspace(local);
           const sel = selectFirst(getActiveProject(local));
           setCollectionId(sel.collectionId);
@@ -133,6 +158,78 @@ export default function App() {
     if (!project) return null;
     return findSelection(project, collectionId, requestId);
   }, [project, collectionId, requestId]);
+
+  const activeEnvironment = useMemo(
+    () => (workspace ? getActiveEnvironment(workspace) : null),
+    [workspace],
+  );
+
+  const envVars = activeEnvironment?.variables ?? {};
+
+  function commitWorkspace(next: Workspace, markDirty = true) {
+    setWorkspace(next);
+    if (markDirty) setDirty(true);
+  }
+
+  function withEnsuredEnv(ws: Workspace): Workspace {
+    return ensureActiveEnvironment(ws);
+  }
+
+  function setEnvironmentVariables(variables: Record<string, string>) {
+    if (!workspace) return;
+    const ensured = withEnsuredEnv(workspace);
+    const envId = ensured.activeEnvironmentId!;
+    commitWorkspace({
+      ...ensured,
+      environments: ensured.environments.map((env) =>
+        env.id === envId ? { ...env, variables } : env,
+      ),
+    });
+  }
+
+  function setEnvironmentVariable(name: string, value: string) {
+    const key = name.trim();
+    if (!key || !workspace) return;
+    const ensured = withEnsuredEnv(workspace);
+    const envId = ensured.activeEnvironmentId!;
+    commitWorkspace({
+      ...ensured,
+      environments: ensured.environments.map((env) =>
+        env.id === envId
+          ? { ...env, variables: { ...env.variables, [key]: value } }
+          : env,
+      ),
+    });
+  }
+
+  function addEnvironment() {
+    if (!workspace) return;
+    const name = window.prompt("Environment name", `Env ${workspace.environments.length + 1}`);
+    if (!name?.trim()) return;
+    const env = emptyEnvironment(name.trim());
+    commitWorkspace({
+      ...workspace,
+      environments: [...workspace.environments, env],
+      activeEnvironmentId: env.id,
+    });
+  }
+
+  function switchEnvironment(envId: string) {
+    if (!workspace) return;
+    commitWorkspace({ ...workspace, activeEnvironmentId: envId }, false);
+  }
+
+  function upsertRequestHeader(key: string, value: string) {
+    if (!selection) return;
+    const headers = [...selection.request.headers];
+    const index = headers.findIndex((row) => row.key.toLowerCase() === key.toLowerCase());
+    if (index >= 0) {
+      headers[index] = { ...headers[index]!, key, value, enabled: true };
+    } else {
+      headers.push({ key, value, enabled: true });
+    }
+    updateRequest({ headers });
+  }
 
   function updateRequest(patch: Partial<ApiRequest>) {
     if (!workspace || !selection) return;
@@ -411,38 +508,206 @@ export default function App() {
     }
   }
 
+  async function sendPreparedRequest(
+    request: ApiRequest,
+    vars: Record<string, string>,
+  ): Promise<{ result: ProxyResponse; vars: Record<string, string>; warning: string | null }> {
+    const extracts = request.extracts ?? [];
+    const unresolved = collectUnresolved(
+      [
+        request.url,
+        request.body,
+        ...request.headers.filter((h) => h.enabled).map((h) => `${h.key}${h.value}`),
+      ],
+      vars,
+    );
+    const warning =
+      unresolved.length > 0
+        ? `Unresolved variables: ${unresolved.map((n) => `{{${n}}}`).join(", ")}`
+        : null;
+
+    const headers: Record<string, string> = {};
+    for (const row of request.headers) {
+      if (!row.enabled || !row.key.trim()) continue;
+      headers[interpolate(row.key, vars)] = interpolate(row.value, vars);
+    }
+    if (request.bodyType === "json" && request.body && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+    const body =
+      request.bodyType === "none" || request.method === "GET" || request.method === "HEAD"
+        ? null
+        : interpolate(request.body, vars);
+
+    const result = await proxyRequest({
+      method: request.method,
+      url: interpolate(request.url, vars),
+      headers,
+      body,
+    });
+
+    let nextVars = vars;
+    if (isSuccessStatus(result.status) && extracts.length > 0) {
+      const applied = applyExtracts(result, extracts, vars);
+      nextVars = applied.vars;
+    }
+
+    return { result, vars: nextVars, warning };
+  }
+
   async function handleSend() {
-    if (!selection) return;
+    if (!selection || !workspace) return;
     setSending(true);
     setError(null);
     setResponse(null);
+    setUnresolvedWarning(null);
     try {
-      const { request } = selection;
-      const headers: Record<string, string> = {};
-      for (const row of request.headers) {
-        if (!row.enabled || !row.key.trim()) continue;
-        headers[row.key] = row.value;
-      }
-      if (request.bodyType === "json" && request.body && !headers["Content-Type"]) {
-        headers["Content-Type"] = "application/json";
-      }
-      const body =
-        request.bodyType === "none" || request.method === "GET" || request.method === "HEAD"
-          ? null
-          : request.body;
-      const result = await proxyRequest({
-        method: request.method,
-        url: request.url,
-        headers,
-        body,
-      });
+      const ensured = withEnsuredEnv(workspace);
+      const env = getActiveEnvironment(ensured);
+      const vars = { ...(env?.variables ?? {}) };
+      const { result, vars: nextVars, warning } = await sendPreparedRequest(
+        selection.request,
+        vars,
+      );
+      if (warning) setUnresolvedWarning(warning);
       setResponse(result);
       setResponseTab("body");
+      if (env && nextVars !== vars) {
+        commitWorkspace({
+          ...ensured,
+          environments: ensured.environments.map((item) =>
+            item.id === env.id ? { ...item, variables: nextVars } : item,
+          ),
+        });
+      } else if (ensured !== workspace) {
+        commitWorkspace(ensured, false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed");
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleRunCollection(targetCollectionId: string) {
+    if (!workspace || !project || runningCollection) return;
+    const collection = project.collections.find((c) => c.id === targetCollectionId);
+    if (!collection || collection.requests.length === 0) {
+      setError("Collection has no requests to run");
+      return;
+    }
+
+    setRunningCollection(true);
+    setError(null);
+    setUnresolvedWarning(null);
+    const steps: RunStepStatus[] = collection.requests.map((req) => ({
+      requestId: req.id,
+      name: req.name,
+      status: "pending",
+    }));
+    setRunSteps(steps);
+
+    let ensured = withEnsuredEnv(workspace);
+    let env = getActiveEnvironment(ensured);
+    let vars = { ...(env?.variables ?? {}) };
+
+    try {
+      for (let i = 0; i < collection.requests.length; i += 1) {
+        const req = collection.requests[i]!;
+        setCollectionId(collection.id);
+        setRequestId(req.id);
+        setRunSteps((prev) =>
+          prev.map((step, idx) =>
+            idx === i ? { ...step, status: "running" } : step,
+          ),
+        );
+
+        try {
+          const { result, vars: nextVars, warning } = await sendPreparedRequest(req, vars);
+          vars = nextVars;
+          setResponse(result);
+          setResponseTab("body");
+          if (warning) setUnresolvedWarning(warning);
+
+          if (!isSuccessStatus(result.status)) {
+            setRunSteps((prev) =>
+              prev.map((step, idx) =>
+                idx === i
+                  ? {
+                      ...step,
+                      status: "failed",
+                      detail: `${result.status} ${result.statusText}`,
+                    }
+                  : step,
+              ),
+            );
+            setError(`Run stopped at “${req.name}”: ${result.status} ${result.statusText}`);
+            break;
+          }
+
+          setRunSteps((prev) =>
+            prev.map((step, idx) =>
+              idx === i ? { ...step, status: "ok", detail: String(result.status) } : step,
+            ),
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Send failed";
+          setRunSteps((prev) =>
+            prev.map((step, idx) =>
+              idx === i ? { ...step, status: "failed", detail: message } : step,
+            ),
+          );
+          setError(`Run stopped at “${req.name}”: ${message}`);
+          break;
+        }
+      }
+
+      if (env) {
+        ensured = {
+          ...ensured,
+          environments: ensured.environments.map((item) =>
+            item.id === env!.id ? { ...item, variables: vars } : item,
+          ),
+        };
+        commitWorkspace(ensured);
+      }
+    } finally {
+      setRunningCollection(false);
+    }
+  }
+
+  function saveBodyExtract() {
+    if (!response) return;
+    const value = extractFromResponse(response, "body", bodyExtractPath);
+    if (value === null) {
+      setError(`Could not extract body path “${bodyExtractPath}”`);
+      return;
+    }
+    setEnvironmentVariable(bodyExtractVar, value);
+    setError(null);
+  }
+
+  function applyBodyToRequest() {
+    if (!response || !selection) return;
+    const trimmed = response.body.trim();
+    const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+    updateRequest({
+      body: response.body,
+      bodyType: looksJson ? "json" : "raw",
+    });
+    setEditorTab("body");
+  }
+
+  function saveHeaderAsVariable(headerName: string, headerValue: string) {
+    const suggested = headerName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const name = window.prompt("Variable name", suggested || "header_value");
+    if (!name?.trim()) return;
+    setEnvironmentVariable(name.trim(), headerValue);
+  }
+
+  function applyHeaderToRequest(headerName: string, headerValue: string) {
+    upsertRequestHeader(headerName, headerValue);
+    setEditorTab("headers");
   }
 
   async function handleLogout() {
@@ -454,7 +719,7 @@ export default function App() {
     setGistId(null);
     setResponse(null);
     setDirty(false);
-    const local = loadLocalWorkspace();
+    const local = ensureActiveEnvironment(loadLocalWorkspace());
     setWorkspace(local);
     const sel = selectFirst(getActiveProject(local));
     setCollectionId(sel.collectionId);
@@ -620,6 +885,85 @@ export default function App() {
                 Delete
               </button>
             </div>
+            <label className="project-menu-label" htmlFor="env-select">
+              Environment
+            </label>
+            <div className="project-menu-row">
+              <select
+                id="env-select"
+                className="project-select"
+                value={activeEnvironment?.id ?? ""}
+                onChange={(e) => {
+                  if (e.target.value) switchEnvironment(e.target.value);
+                }}
+              >
+                {workspace.environments.map((env) => (
+                  <option key={env.id} value={env.id}>
+                    {env.name}
+                  </option>
+                ))}
+              </select>
+              <button className="btn" type="button" title="New environment" onClick={addEnvironment}>
+                +
+              </button>
+              <button
+                className="btn"
+                type="button"
+                title="Edit variables"
+                onClick={() => {
+                  if (!workspace.environments.length) {
+                    commitWorkspace(withEnsuredEnv(workspace), false);
+                  }
+                  setEnvPanelOpen((open) => !open);
+                }}
+              >
+                Vars
+              </button>
+            </div>
+            {envPanelOpen ? (
+              <div className="env-panel">
+                <p className="muted env-hint">
+                  Use {"{{name}}"} in URL, headers, or body.
+                </p>
+                {Object.keys(envVars).length === 0 ? (
+                  <p className="muted">No variables yet.</p>
+                ) : (
+                  Object.entries(envVars).map(([key, value]) => (
+                    <div className="env-kv" key={key}>
+                      <input value={key} readOnly title={key} />
+                      <input
+                        value={value}
+                        onChange={(e) => {
+                          setEnvironmentVariables({ ...envVars, [key]: e.target.value });
+                        }}
+                      />
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          const next = { ...envVars };
+                          delete next[key];
+                          setEnvironmentVariables(next);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
+                )}
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    const name = window.prompt("Variable name");
+                    if (!name?.trim()) return;
+                    setEnvironmentVariable(name.trim(), "");
+                  }}
+                >
+                  Add variable
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="sidebar-header">
             <h2>Websites</h2>
@@ -652,6 +996,8 @@ export default function App() {
                 onDeleteGroup={deleteGroup}
                 onDeleteCollection={deleteCollection}
                 onDeleteRequest={deleteRequest}
+                onRunCollection={(id) => void handleRunCollection(id)}
+                runningCollection={runningCollection}
               />
             ))}
             <WebsiteGroupBlock
@@ -673,12 +1019,37 @@ export default function App() {
               onDeleteGroup={deleteGroup}
               onDeleteCollection={deleteCollection}
               onDeleteRequest={deleteRequest}
+              onRunCollection={(id) => void handleRunCollection(id)}
+              runningCollection={runningCollection}
             />
           </div>
         </aside>
 
         <section className="main-pane">
           {error ? <div className="error-banner">{error}</div> : null}
+          {unresolvedWarning ? (
+            <div className="warn-banner">{unresolvedWarning}</div>
+          ) : null}
+          {runSteps.length > 0 ? (
+            <div className="run-steps">
+              <strong>Collection run</strong>
+              <ul>
+                {runSteps.map((step) => (
+                  <li key={step.requestId} className={`run-step run-step-${step.status}`}>
+                    {step.name}
+                    {step.detail ? ` — ${step.detail}` : ""}
+                    {step.status === "pending"
+                      ? " (pending)"
+                      : step.status === "running"
+                        ? " (running)"
+                        : step.status === "ok"
+                          ? " ✓"
+                          : " ✗"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {!request ? (
             <div className="empty-project-pane">
@@ -702,6 +1073,12 @@ export default function App() {
                 onClick={() => setEditorTab("body")}
               >
                 Body
+              </button>
+              <button
+                className={`tab${editorTab === "extracts" ? " active" : ""}`}
+                onClick={() => setEditorTab("extracts")}
+              >
+                Extracts
               </button>
             </div>
             <div className="tabs-panel">
@@ -730,7 +1107,7 @@ export default function App() {
                         }}
                       />
                       <input
-                        placeholder="Value"
+                        placeholder="Value ({{var}} ok)"
                         value={row.value}
                         onChange={(e) => {
                           const next = request.headers.map((h, i) =>
@@ -761,7 +1138,7 @@ export default function App() {
                     Add header
                   </button>
                 </>
-              ) : (
+              ) : editorTab === "body" ? (
                 <div className="body-editor">
                   <div style={{ marginBottom: 8, display: "flex", gap: 8 }}>
                     {(["none", "json", "raw"] as BodyType[]).map((type) => (
@@ -781,10 +1158,81 @@ export default function App() {
                       value={request.body}
                       onChange={(e) => updateRequest({ body: e.target.value })}
                       placeholder={
-                        request.bodyType === "json" ? '{\n  "hello": "world"\n}' : "raw body"
+                        request.bodyType === "json"
+                          ? '{\n  "token": "{{token}}"\n}'
+                          : "raw body"
                       }
                     />
                   )}
+                </div>
+              ) : (
+                <div className="extracts-editor">
+                  <p className="muted">
+                    After a successful response, set environment variables from the body path or
+                    a response header name.
+                  </p>
+                  {(request.extracts ?? []).map((rule, index) => (
+                    <div className="extract-row" key={`${index}-${rule.variable}`}>
+                      <select
+                        value={rule.source}
+                        onChange={(e) => {
+                          const source = e.target.value as RequestExtract["source"];
+                          const extracts = (request.extracts ?? []).map((item, i) =>
+                            i === index ? { ...item, source } : item,
+                          );
+                          updateRequest({ extracts });
+                        }}
+                      >
+                        <option value="body">Body path</option>
+                        <option value="header">Header</option>
+                      </select>
+                      <input
+                        placeholder={rule.source === "body" ? "data.token" : "Authorization"}
+                        value={rule.path}
+                        onChange={(e) => {
+                          const extracts = (request.extracts ?? []).map((item, i) =>
+                            i === index ? { ...item, path: e.target.value } : item,
+                          );
+                          updateRequest({ extracts });
+                        }}
+                      />
+                      <input
+                        placeholder="variable"
+                        value={rule.variable}
+                        onChange={(e) => {
+                          const extracts = (request.extracts ?? []).map((item, i) =>
+                            i === index ? { ...item, variable: e.target.value } : item,
+                          );
+                          updateRequest({ extracts });
+                        }}
+                      />
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() =>
+                          updateRequest({
+                            extracts: (request.extracts ?? []).filter((_, i) => i !== index),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() =>
+                      updateRequest({
+                        extracts: [
+                          ...(request.extracts ?? []),
+                          { source: "body", path: "", variable: "" },
+                        ],
+                      })
+                    }
+                  >
+                    Add extract
+                  </button>
                 </div>
               )}
             </div>
@@ -822,13 +1270,70 @@ export default function App() {
               {!response ? (
                 <p className="muted">Send a request to see the response.</p>
               ) : responseTab === "body" ? (
-                <textarea className="response-body" readOnly value={formatJsonBody(response.body)} />
+                <>
+                  <div className="reuse-bar">
+                    <input
+                      value={bodyExtractPath}
+                      onChange={(e) => setBodyExtractPath(e.target.value)}
+                      placeholder="JSON path e.g. data.token"
+                    />
+                    <input
+                      value={bodyExtractVar}
+                      onChange={(e) => setBodyExtractVar(e.target.value)}
+                      placeholder="variable name"
+                    />
+                    <button className="btn" type="button" onClick={saveBodyExtract}>
+                      Save as var
+                    </button>
+                    <button className="btn" type="button" onClick={applyBodyToRequest}>
+                      Use as body
+                    </button>
+                  </div>
+                  <textarea
+                    className="response-body"
+                    readOnly
+                    value={formatJsonBody(response.body)}
+                  />
+                </>
               ) : (
-                <pre className="response-body">
-                  {Object.entries(response.headers)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join("\n")}
-                </pre>
+                <div className="response-headers-list">
+                  {Object.entries(response.headers).map(([name, value]) => (
+                    <div className="response-header-row" key={name}>
+                      <code>
+                        {name}: {value}
+                      </code>
+                      <div className="reuse-actions">
+                        <button
+                          className="linkish"
+                          type="button"
+                          onClick={() => saveHeaderAsVariable(name, value)}
+                        >
+                          Save var
+                        </button>
+                        <button
+                          className="linkish"
+                          type="button"
+                          onClick={() => applyHeaderToRequest(name, value)}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          className="linkish"
+                          type="button"
+                          onClick={() => {
+                            const bearer = value.toLowerCase().startsWith("bearer ")
+                              ? value
+                              : `Bearer ${value}`;
+                            upsertRequestHeader("Authorization", bearer);
+                            setEditorTab("headers");
+                          }}
+                        >
+                          As Bearer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -858,6 +1363,8 @@ type GroupBlockProps = {
   onDeleteGroup: (groupId: string) => void;
   onDeleteCollection: (collectionId: string) => void;
   onDeleteRequest: (collectionId: string, requestId: string) => void;
+  onRunCollection: (collectionId: string) => void;
+  runningCollection: boolean;
 };
 
 function WebsiteGroupBlock({
@@ -872,6 +1379,8 @@ function WebsiteGroupBlock({
   onDeleteGroup,
   onDeleteCollection,
   onDeleteRequest,
+  onRunCollection,
+  runningCollection,
 }: GroupBlockProps) {
   const containsActive = collections.some((collection) =>
     collection.requests.some((request) => request.id === activeRequestId),
@@ -952,6 +1461,14 @@ function WebsiteGroupBlock({
                     onClick={() => onAddRequest(collection.id)}
                   >
                     + request
+                  </button>
+                  <button
+                    className="linkish"
+                    type="button"
+                    disabled={runningCollection || collection.requests.length === 0}
+                    onClick={() => onRunCollection(collection.id)}
+                  >
+                    {runningCollection ? "Running…" : "Run"}
                   </button>
                   <button
                     type="button"

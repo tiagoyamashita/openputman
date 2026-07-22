@@ -277,6 +277,7 @@ export function parseOpenApiDocument(raw: string): Collection {
         headers,
         body,
         bodyType,
+        extracts: [],
       });
     }
   }
