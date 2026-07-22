@@ -1,9 +1,12 @@
 import {
   createId,
   emptyCollection,
+  getActiveProject,
   normalizeWorkspace,
+  withActiveProject,
   type ApiRequest,
   type Collection,
+  type Project,
   type WebsiteGroup,
   type Workspace,
 } from "./types";
@@ -68,8 +71,9 @@ export function buildExport(
     return { format: "openputman", version: 1, kind, exportedAt, workspace };
   }
 
+  const project = getActiveProject(workspace);
   const collection =
-    workspace.collections.find((c) => c.id === collectionId) ?? workspace.collections[0];
+    project?.collections.find((c) => c.id === collectionId) ?? project?.collections[0];
   if (!collection) {
     throw new Error("No collection to export");
   }
@@ -158,6 +162,26 @@ function remintGroup(group: WebsiteGroup): WebsiteGroup {
   return { ...group, id: createId() };
 }
 
+function remintProject(project: Project): Project {
+  const groupIdMap = new Map<string, string>();
+  const groups = project.groups.map((group) => {
+    const next = remintGroup(group);
+    groupIdMap.set(group.id, next.id);
+    return next;
+  });
+  return {
+    ...project,
+    id: createId(),
+    groups,
+    collections: project.collections.map((collection) =>
+      remintCollection(
+        collection,
+        collection.groupId ? (groupIdMap.get(collection.groupId) ?? null) : null,
+      ),
+    ),
+  };
+}
+
 export type LoadResult = {
   workspace: Workspace;
   collectionId: string | null;
@@ -173,26 +197,18 @@ export function applyExportToWorkspace(
     case "workspace": {
       const incoming = payload.workspace;
       if (!incoming) throw new Error("Missing workspace in export");
-      const groupIdMap = new Map<string, string>();
-      const groups = incoming.groups.map((group) => {
-        const next = remintGroup(group);
-        groupIdMap.set(group.id, next.id);
-        return next;
-      });
-      const collections = incoming.collections.map((collection) =>
-        remintCollection(
-          collection,
-          collection.groupId ? (groupIdMap.get(collection.groupId) ?? null) : null,
-        ),
-      );
+      const projects =
+        incoming.projects.length > 0
+          ? incoming.projects.map(remintProject)
+          : current.projects.map(remintProject);
       const workspace: Workspace = {
         version: 1,
-        groups,
+        projects,
+        activeProjectId: projects[0]?.id ?? null,
         environments: incoming.environments ?? [],
         activeEnvironmentId: incoming.activeEnvironmentId ?? null,
-        collections: collections.length > 0 ? collections : current.collections,
       };
-      const first = workspace.collections[0];
+      const first = getActiveProject(workspace)?.collections[0];
       return {
         workspace,
         collectionId: first?.id ?? null,
@@ -202,11 +218,12 @@ export function applyExportToWorkspace(
     case "collection": {
       if (!payload.collection) throw new Error("Missing collection in export");
       const collection = remintCollection(payload.collection, null);
+      const workspace = withActiveProject(current, (project) => ({
+        ...project,
+        collections: [...project.collections, collection],
+      }));
       return {
-        workspace: {
-          ...current,
-          collections: [...current.collections, collection],
-        },
+        workspace,
         collectionId: collection.id,
         requestId: collection.requests[0]?.id ?? null,
       };
@@ -214,30 +231,36 @@ export function applyExportToWorkspace(
     case "request": {
       if (!payload.request) throw new Error("Missing request in export");
       const request = remintRequest(payload.request);
+      const active = getActiveProject(current);
       const targetId =
-        activeCollectionId && current.collections.some((c) => c.id === activeCollectionId)
+        activeCollectionId && active?.collections.some((c) => c.id === activeCollectionId)
           ? activeCollectionId
-          : current.collections[0]?.id;
+          : active?.collections[0]?.id;
 
       if (!targetId) {
         const collection = emptyCollection("Imported", null);
         collection.requests = [request];
+        const workspace = withActiveProject(current, (project) => ({
+          ...project,
+          collections: [...project.collections, collection],
+        }));
         return {
-          workspace: { ...current, collections: [collection] },
+          workspace,
           collectionId: collection.id,
           requestId: request.id,
         };
       }
 
+      const workspace = withActiveProject(current, (project) => ({
+        ...project,
+        collections: project.collections.map((collection) =>
+          collection.id === targetId
+            ? { ...collection, requests: [...collection.requests, request] }
+            : collection,
+        ),
+      }));
       return {
-        workspace: {
-          ...current,
-          collections: current.collections.map((collection) =>
-            collection.id === targetId
-              ? { ...collection, requests: [...collection.requests, request] }
-              : collection,
-          ),
-        },
+        workspace,
         collectionId: targetId,
         requestId: request.id,
       };

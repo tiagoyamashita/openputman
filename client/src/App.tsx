@@ -17,12 +17,16 @@ import { loadLocalWorkspace, saveLocalWorkspace } from "./storage";
 import {
   emptyCollection,
   emptyGroup,
+  emptyProject,
   emptyRequest,
+  getActiveProject,
   normalizeWorkspace,
+  withActiveProject,
   type ApiRequest,
   type BodyType,
   type Collection,
   type HeaderRow,
+  type Project,
   type ProxyResponse,
   type User,
   type WebsiteGroup,
@@ -35,12 +39,12 @@ type ResponseTab = "body" | "headers";
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
 
 function findSelection(
-  workspace: Workspace,
+  project: Project,
   collectionId: string | null,
   requestId: string | null,
 ): { collectionId: string; requestId: string; request: ApiRequest } | null {
   const collection =
-    workspace.collections.find((c) => c.id === collectionId) ?? workspace.collections[0];
+    project.collections.find((c) => c.id === collectionId) ?? project.collections[0];
   if (!collection) return null;
   const request =
     collection.requests.find((r) => r.id === requestId) ?? collection.requests[0];
@@ -48,11 +52,11 @@ function findSelection(
   return { collectionId: collection.id, requestId: request.id, request };
 }
 
-function selectFirst(workspace: Workspace): {
+function selectFirst(project: Project | null): {
   collectionId: string | null;
   requestId: string | null;
 } {
-  const first = workspace.collections[0];
+  const first = project?.collections[0];
   return {
     collectionId: first?.id ?? null,
     requestId: first?.requests[0]?.id ?? null,
@@ -90,14 +94,14 @@ export default function App() {
           const ws = normalizeWorkspace(loaded.workspace) ?? loaded.workspace;
           setWorkspace(ws);
           setGistId(loaded.gistId);
-          const sel = selectFirst(ws);
+          const sel = selectFirst(getActiveProject(ws));
           setCollectionId(sel.collectionId);
           setRequestId(sel.requestId);
         } else {
           const local = loadLocalWorkspace();
           setWorkspace(local);
           setGistId(null);
-          const sel = selectFirst(local);
+          const sel = selectFirst(getActiveProject(local));
           setCollectionId(sel.collectionId);
           setRequestId(sel.requestId);
         }
@@ -105,7 +109,7 @@ export default function App() {
         if (!cancelled) {
           const local = loadLocalWorkspace();
           setWorkspace(local);
-          const sel = selectFirst(local);
+          const sel = selectFirst(getActiveProject(local));
           setCollectionId(sel.collectionId);
           setRequestId(sel.requestId);
           setError(err instanceof Error ? err.message : "Failed to start");
@@ -119,30 +123,93 @@ export default function App() {
     };
   }, []);
 
+  const project = useMemo(
+    () => (workspace ? getActiveProject(workspace) : null),
+    [workspace],
+  );
+
   const selection = useMemo(() => {
-    if (!workspace) return null;
-    return findSelection(workspace, collectionId, requestId);
-  }, [workspace, collectionId, requestId]);
+    if (!project) return null;
+    return findSelection(project, collectionId, requestId);
+  }, [project, collectionId, requestId]);
 
   function updateRequest(patch: Partial<ApiRequest>) {
     if (!workspace || !selection) return;
-    setWorkspace({
-      ...workspace,
-      collections: workspace.collections.map((collection) => {
-        if (collection.id !== selection.collectionId) return collection;
-        return {
-          ...collection,
-          requests: collection.requests.map((request) =>
-            request.id === selection.requestId ? { ...request, ...patch } : request,
-          ),
-        };
-      }),
-    });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        collections: active.collections.map((collection) => {
+          if (collection.id !== selection.collectionId) return collection;
+          return {
+            ...collection,
+            requests: collection.requests.map((request) =>
+              request.id === selection.requestId ? { ...request, ...patch } : request,
+            ),
+          };
+        }),
+      })),
+    );
     setDirty(true);
   }
 
   function updateHeaders(headers: HeaderRow[]) {
     updateRequest({ headers });
+  }
+
+  function addProject() {
+    if (!workspace) return;
+    const name = window.prompt("Project name", `Project ${workspace.projects.length + 1}`);
+    if (!name?.trim()) return;
+    const next = emptyProject(name.trim());
+    setWorkspace({
+      ...workspace,
+      projects: [...workspace.projects, next],
+      activeProjectId: next.id,
+    });
+    setActiveGroupId(next.groups[0]?.id ?? null);
+    const sel = selectFirst(next);
+    setCollectionId(sel.collectionId);
+    setRequestId(sel.requestId);
+    setResponse(null);
+    setDirty(true);
+  }
+
+  function switchProject(projectId: string) {
+    if (!workspace) return;
+    const next = workspace.projects.find((p) => p.id === projectId);
+    if (!next) return;
+    setWorkspace({ ...workspace, activeProjectId: projectId });
+    setActiveGroupId(next.groups[0]?.id ?? null);
+    const sel = selectFirst(next);
+    setCollectionId(sel.collectionId);
+    setRequestId(sel.requestId);
+    setResponse(null);
+  }
+
+  function deleteProject(projectId: string) {
+    if (!workspace) return;
+    if (workspace.projects.length <= 1) {
+      setError("Keep at least one project");
+      return;
+    }
+    if (!window.confirm("Delete this project and all of its websites?")) return;
+    const remaining = workspace.projects.filter((p) => p.id !== projectId);
+    const nextActive =
+      workspace.activeProjectId === projectId
+        ? remaining[0]
+        : getActiveProject({ ...workspace, projects: remaining });
+    const nextWorkspace: Workspace = {
+      ...workspace,
+      projects: remaining,
+      activeProjectId: nextActive?.id ?? null,
+    };
+    setWorkspace(nextWorkspace);
+    setActiveGroupId(nextActive?.groups[0]?.id ?? null);
+    const sel = selectFirst(nextActive ?? null);
+    setCollectionId(sel.collectionId);
+    setRequestId(sel.requestId);
+    setResponse(null);
+    setDirty(true);
   }
 
   function addGroup() {
@@ -151,18 +218,28 @@ export default function App() {
     if (!name?.trim()) return;
     const website = window.prompt("Website URL (optional)", "https://") ?? "";
     const group = emptyGroup(name.trim(), website.trim());
-    setWorkspace({ ...workspace, groups: [...workspace.groups, group] });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        groups: [...active.groups, group],
+      })),
+    );
     setActiveGroupId(group.id);
     setDirty(true);
   }
 
   function addCollection(groupId: string | null = activeGroupId) {
-    if (!workspace) return;
+    if (!workspace || !project) return;
     const collection = emptyCollection(
-      `Collection ${workspace.collections.length + 1}`,
+      `Collection ${project.collections.length + 1}`,
       groupId,
     );
-    setWorkspace({ ...workspace, collections: [...workspace.collections, collection] });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        collections: [...active.collections, collection],
+      })),
+    );
     setCollectionId(collection.id);
     setRequestId(collection.requests[0].id);
     setActiveGroupId(groupId);
@@ -171,27 +248,29 @@ export default function App() {
 
   function moveCollectionToGroup(targetCollectionId: string, groupId: string | null) {
     if (!workspace) return;
-    setWorkspace({
-      ...workspace,
-      collections: workspace.collections.map((collection) =>
-        collection.id === targetCollectionId ? { ...collection, groupId } : collection,
-      ),
-    });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        collections: active.collections.map((collection) =>
+          collection.id === targetCollectionId ? { ...collection, groupId } : collection,
+        ),
+      })),
+    );
     setDirty(true);
   }
 
   function deleteGroup(groupId: string) {
     if (!workspace) return;
     if (!window.confirm("Delete this website group? Its collections become ungrouped.")) return;
-    const nextCollections = workspace.collections.map((collection) =>
-      collection.groupId === groupId ? { ...collection, groupId: null } : collection,
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        groups: active.groups.filter((group) => group.id !== groupId),
+        collections: active.collections.map((collection) =>
+          collection.groupId === groupId ? { ...collection, groupId: null } : collection,
+        ),
+      })),
     );
-    const nextWorkspace = {
-      ...workspace,
-      groups: workspace.groups.filter((group) => group.id !== groupId),
-      collections: nextCollections,
-    };
-    setWorkspace(nextWorkspace);
     if (activeGroupId === groupId) setActiveGroupId(null);
     setDirty(true);
   }
@@ -199,13 +278,15 @@ export default function App() {
   function deleteCollection(targetCollectionId: string) {
     if (!workspace) return;
     if (!window.confirm("Delete this collection and all of its requests?")) return;
-    const remaining = workspace.collections.filter(
-      (collection) => collection.id !== targetCollectionId,
-    );
-    const nextWorkspace = { ...workspace, collections: remaining };
+    const nextWorkspace = withActiveProject(workspace, (active) => ({
+      ...active,
+      collections: active.collections.filter(
+        (collection) => collection.id !== targetCollectionId,
+      ),
+    }));
     setWorkspace(nextWorkspace);
     if (collectionId === targetCollectionId) {
-      const sel = selectFirst(nextWorkspace);
+      const sel = selectFirst(getActiveProject(nextWorkspace));
       setCollectionId(sel.collectionId);
       setRequestId(sel.requestId);
       setResponse(null);
@@ -216,21 +297,22 @@ export default function App() {
   function deleteRequest(targetCollectionId: string, targetRequestId: string) {
     if (!workspace) return;
     if (!window.confirm("Delete this request?")) return;
-    const nextWorkspace: Workspace = {
-      ...workspace,
-      collections: workspace.collections.map((collection) => {
+    const nextWorkspace = withActiveProject(workspace, (active) => ({
+      ...active,
+      collections: active.collections.map((collection) => {
         if (collection.id !== targetCollectionId) return collection;
         return {
           ...collection,
           requests: collection.requests.filter((request) => request.id !== targetRequestId),
         };
       }),
-    };
+    }));
     setWorkspace(nextWorkspace);
     if (requestId === targetRequestId) {
+      const active = getActiveProject(nextWorkspace);
       const collection =
-        nextWorkspace.collections.find((c) => c.id === targetCollectionId) ??
-        nextWorkspace.collections[0];
+        active?.collections.find((c) => c.id === targetCollectionId) ??
+        active?.collections[0];
       setCollectionId(collection?.id ?? null);
       setRequestId(collection?.requests[0]?.id ?? null);
       setResponse(null);
@@ -241,14 +323,16 @@ export default function App() {
   function addRequest(targetCollectionId: string) {
     if (!workspace) return;
     const request = emptyRequest();
-    setWorkspace({
-      ...workspace,
-      collections: workspace.collections.map((collection) =>
-        collection.id === targetCollectionId
-          ? { ...collection, requests: [...collection.requests, request] }
-          : collection,
-      ),
-    });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        collections: active.collections.map((collection) =>
+          collection.id === targetCollectionId
+            ? { ...collection, requests: [...collection.requests, request] }
+            : collection,
+        ),
+      })),
+    );
     setCollectionId(targetCollectionId);
     setRequestId(request.id);
     setDirty(true);
@@ -257,10 +341,12 @@ export default function App() {
   function importCollection(collection: Collection) {
     if (!workspace) return;
     const next = { ...collection, groupId: activeGroupId };
-    setWorkspace({
-      ...workspace,
-      collections: [...workspace.collections, next],
-    });
+    setWorkspace(
+      withActiveProject(workspace, (active) => ({
+        ...active,
+        collections: [...active.collections, next],
+      })),
+    );
     setCollectionId(next.id);
     setRequestId(next.requests[0]?.id ?? null);
     setDirty(true);
@@ -369,7 +455,7 @@ export default function App() {
     setDirty(false);
     const local = loadLocalWorkspace();
     setWorkspace(local);
-    const sel = selectFirst(local);
+    const sel = selectFirst(getActiveProject(local));
     setCollectionId(sel.collectionId);
     setRequestId(sel.requestId);
   }
@@ -382,7 +468,7 @@ export default function App() {
     );
   }
 
-  if (!workspace || !selection) {
+  if (!workspace || !project || !selection) {
     return (
       <div className="landing">
         <p className="muted">No workspace loaded.</p>
@@ -496,6 +582,36 @@ export default function App() {
 
       <div className="workspace">
         <aside className="sidebar">
+          <div className="project-menu">
+            <label className="project-menu-label" htmlFor="project-select">
+              Project
+            </label>
+            <div className="project-menu-row">
+              <select
+                id="project-select"
+                className="project-select"
+                value={workspace.activeProjectId ?? project.id}
+                onChange={(e) => switchProject(e.target.value)}
+              >
+                {workspace.projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <button className="btn" type="button" title="New project" onClick={addProject}>
+                +
+              </button>
+              <button
+                className="btn-delete"
+                type="button"
+                title="Delete project"
+                onClick={() => deleteProject(project.id)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
           <div className="sidebar-header">
             <h2>Websites</h2>
             <div className="sidebar-actions">
@@ -508,12 +624,12 @@ export default function App() {
             </div>
           </div>
           <div className="sidebar-body">
-            {workspace.groups.map((group) => (
+            {project.groups.map((group) => (
               <WebsiteGroupBlock
                 key={group.id}
                 group={group}
-                collections={workspace.collections.filter((c) => c.groupId === group.id)}
-                allGroups={workspace.groups}
+                collections={project.collections.filter((c) => c.groupId === group.id)}
+                allGroups={project.groups}
                 activeRequestId={selection.requestId}
                 onAddCollection={() => addCollection(group.id)}
                 onAddRequest={addRequest}
@@ -531,10 +647,10 @@ export default function App() {
             ))}
             <WebsiteGroupBlock
               group={null}
-              collections={workspace.collections.filter(
-                (c) => !c.groupId || !workspace.groups.some((g) => g.id === c.groupId),
+              collections={project.collections.filter(
+                (c) => !c.groupId || !project.groups.some((g) => g.id === c.groupId),
               )}
-              allGroups={workspace.groups}
+              allGroups={project.groups}
               activeRequestId={selection.requestId}
               onAddCollection={() => addCollection(null)}
               onAddRequest={addRequest}

@@ -173,6 +173,38 @@ button {
   min-height: 0;
 }
 
+.project-menu {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: #1c2128;
+}
+
+.project-menu-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.project-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  height: 30px;
+}
+
 .sidebar-header {
   display: flex;
   align-items: center;

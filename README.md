@@ -37,6 +37,10 @@ The Vite dev server proxies `/auth` and `/api` to the Express server. Guest mode
 | Guest (default) | Browser `localStorage` (`openputman-workspace`) |
 | Signed in | Private GitHub Gist described as `openputman-workspace` |
 
+## Projects
+
+Use the **Project** menu at the top of the sidebar to switch between projects, create a new one, or delete one. Each project owns its own websites, collections, and requests.
+
 ## Website groups
 
 Collections are organized under **website groups** in the sidebar. Use **+ site** to add a group (name + optional URL), **+ collection** inside a group, and the dropdown on each collection to move it between groups.
